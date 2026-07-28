@@ -1,0 +1,476 @@
+<title>Rolling Fib — System Demo</title>
+<style>
+  :root{
+    --bg:#0C1220; --panel:#121B2C; --panel2:#0F1726; --line:#223048; --line2:#1A2740;
+    --text:#DAE3F3; --muted:#7E8EA6; --dim:#5A6A85;
+    --up:#31CFAC; --dn:#F35D74; --sig:#FFB454; --fib:#5C82B8; --fibHi:#C7D5EC;
+    --ui:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+    --mono:"Cascadia Mono",Consolas,ui-monospace,monospace;
+  }
+  html,body{background:var(--bg);color:var(--text);font-family:var(--ui);}
+  .app{display:flex;flex-direction:column;min-height:100vh;}
+  /* ── header ─────────────────────────────── */
+  header{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);}
+  .brand{font-weight:700;letter-spacing:.14em;font-size:14px;}
+  .brand em{font-style:normal;color:var(--sig);}
+  .sub{color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase;}
+  .chip{font-family:var(--mono);font-size:11px;padding:3px 9px;border:1px solid var(--line);border-radius:3px;color:var(--muted);white-space:nowrap;}
+  .clock{margin-left:auto;font-family:var(--mono);font-size:16px;color:var(--fibHi);font-variant-numeric:tabular-nums;}
+  .clock small{color:var(--muted);font-size:10px;margin-left:4px;}
+  /* ── main ───────────────────────────────── */
+  main{display:flex;flex:1;min-height:0;}
+  .chartwrap{flex:1;min-width:0;display:flex;flex-direction:column;padding:12px 6px 4px 14px;}
+  .chart-head{display:flex;align-items:baseline;gap:14px;padding:0 4px 8px;}
+  .chart-head .t{font-size:12px;color:var(--muted);letter-spacing:.06em;}
+  .legend{margin-left:auto;display:flex;gap:14px;font-size:10px;color:var(--dim);letter-spacing:.05em;}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{display:inline-block;width:16px;height:0;border-top:2px solid var(--fib);}
+  .sw.mid{border-top-style:dashed;border-top-color:#93A5C4;border-top-width:1px;}
+  .sw.amb{border-top-color:var(--sig);}
+  .svgbox{flex:1;min-height:340px;overflow-x:auto;}
+  .svgbox svg{display:block;width:100%;height:100%;min-width:720px;}
+  /* ── sidebar ────────────────────────────── */
+  aside{width:322px;flex:none;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;}
+  .panel{border-bottom:1px solid var(--line);padding:12px 14px;}
+  .panel h3{font-size:10px;letter-spacing:.16em;color:var(--dim);text-transform:uppercase;margin-bottom:9px;font-weight:600;}
+  .statusrow{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .status{font-family:var(--mono);font-size:13px;font-weight:600;padding:5px 12px;border-radius:3px;letter-spacing:.06em;}
+  .st-idle{background:#1B2436;color:var(--muted);}
+  .st-armed{background:#3A2C12;color:var(--sig);}
+  .st-qual{background:#0E3A31;color:var(--up);}
+  .st-conf{background:#0E3A31;color:var(--up);outline:1px solid var(--up);}
+  .st-trade{background:var(--up);color:#062019;}
+  .st-roll{background:#232F55;color:#9DB4F5;}
+  .machine{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-family:var(--mono);font-size:9.5px;}
+  .node{padding:3px 7px;border:1px solid var(--line);border-radius:2px;color:var(--dim);white-space:nowrap;}
+  .node.on{border-color:var(--sig);color:var(--sig);background:#241C0D;}
+  .node.done{border-color:#2A4436;color:#4E8A72;}
+  .arr{color:var(--line);font-size:9px;}
+  /* gates */
+  .gate{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid var(--line2);}
+  .gate:last-child{border-bottom:0;}
+  .gate .gl{color:var(--muted);width:86px;flex:none;}
+  .gate .gv{font-family:var(--mono);font-size:11px;flex:1;font-variant-numeric:tabular-nums;color:var(--text);}
+  .pill{font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 7px;border-radius:2px;letter-spacing:.08em;}
+  .p-pass{background:#0E3A31;color:var(--up);}
+  .p-fail{background:#3D1520;color:var(--dn);}
+  .p-warn{background:#3A2C12;color:var(--sig);}
+  .p-na{background:#1B2436;color:var(--dim);}
+  .verdict{margin-top:9px;font-family:var(--mono);font-size:11px;padding:6px 9px;border-radius:3px;text-align:center;letter-spacing:.08em;}
+  .v-block{background:#1B2436;color:var(--muted);}
+  .v-pass{background:#0E3A31;color:var(--up);}
+  .v-roll{background:#232F55;color:#9DB4F5;}
+  /* ledger (recap) */
+  .led{font-family:var(--mono);font-size:11px;}
+  .led .row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;}
+  .led .row b{font-weight:600;}
+  .pos{color:var(--up);} .neg{color:var(--dn);}
+  /* feed */
+  .feedpanel{flex:1;min-height:120px;display:flex;flex-direction:column;border-bottom:0;}
+  .feed{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+  .al{border-left:2px solid var(--sig);background:var(--panel);padding:6px 9px;font-size:11px;}
+  .al .at{font-family:var(--mono);color:var(--sig);font-size:10px;letter-spacing:.06em;}
+  .al .am{color:var(--muted);margin-top:2px;line-height:1.45;font-family:var(--mono);font-size:10.5px;}
+  .al.new{border-left-color:var(--up);}
+  .al.new .at{color:var(--up);}
+  .feed .empty{color:var(--dim);font-size:11px;font-style:italic;padding:4px 2px;}
+  /* ── transport ──────────────────────────── */
+  footer{border-top:1px solid var(--line);background:var(--panel2);padding:12px 18px;display:flex;gap:18px;align-items:flex-start;}
+  .narr{flex:1;min-width:0;}
+  .narr .steplbl{font-family:var(--mono);font-size:10px;color:var(--sig);letter-spacing:.14em;}
+  .narr h2{font-size:16px;font-weight:700;margin:2px 0 4px;text-wrap:balance;}
+  .narr p{font-size:13px;line-height:1.55;color:var(--muted);max-width:78ch;min-height:3.1em;}
+  .narr p b{color:var(--text);font-weight:600;}
+  .ctrl{display:flex;flex-direction:column;gap:9px;align-items:flex-end;flex:none;}
+  .btns{display:flex;gap:8px;}
+  button{font-family:var(--ui);font-size:13px;font-weight:600;padding:9px 20px;border-radius:3px;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;}
+  button.primary{background:var(--sig);border-color:var(--sig);color:#231803;}
+  button:disabled{opacity:.35;cursor:default;}
+  button:focus-visible{outline:2px solid var(--sig);outline-offset:2px;}
+  .dots{display:flex;gap:5px;}
+  .dot{width:14px;height:5px;border-radius:1px;background:var(--line);border:0;padding:0;cursor:pointer;}
+  .dot.on{background:var(--sig);}
+  .dot.past{background:#4E8A72;}
+  .hint{font-size:10px;color:var(--dim);font-family:var(--mono);}
+  /* pulse */
+  .pulse{animation:pu 1.6s ease-out infinite;transform-origin:center;transform-box:fill-box;}
+  @keyframes pu{0%{opacity:.9;transform:scale(.6);}70%{opacity:0;transform:scale(2.2);}100%{opacity:0;}}
+  @media (prefers-reduced-motion: reduce){.pulse{animation:none;opacity:.35;}}
+  @media (max-width: 900px){
+    main{flex-direction:column;}
+    aside{width:auto;border-left:0;border-top:1px solid var(--line);}
+    footer{flex-direction:column;}
+    .ctrl{align-items:stretch;width:100%;}
+    .btns{justify-content:space-between;}
+  }
+</style>
+
+<div class="app">
+  <header>
+    <div>
+      <div class="brand">ROLLING <em>FIB</em></div>
+      <div class="sub">system walkthrough</div>
+    </div>
+    <span class="chip">MES · Micro E-mini S&amp;P</span>
+    <span class="chip">1H qualify → 15m confirm → 5m execute</span>
+    <div class="clock"><span id="clock">09:00</span><small>ET</small></div>
+  </header>
+
+  <main>
+    <div class="chartwrap">
+      <div class="chart-head">
+        <span class="t">5-MINUTE REPLAY · TWO QUALIFYING HOURS · V1.1 LOGIC</span>
+        <div class="legend">
+          <span><span class="sw"></span>fib level</span>
+          <span><span class="sw mid"></span>midline (pivot)</span>
+          <span><span class="sw amb"></span>signal</span>
+        </div>
+      </div>
+      <div class="svgbox"><svg id="chart" viewBox="0 0 1000 540" preserveAspectRatio="xMidYMid meet" role="img" aria-label="MES 5-minute replay chart"></svg></div>
+    </div>
+
+    <aside>
+      <div class="panel">
+        <h3>Radar state</h3>
+        <div class="statusrow"><span class="status" id="status">IDLE</span></div>
+        <div class="machine" id="machine"></div>
+      </div>
+      <div class="panel" id="gatespanel">
+        <h3 id="gatetitle">Qualification gates</h3>
+        <div id="gates"></div>
+        <div id="verdict"></div>
+      </div>
+      <div class="panel feedpanel">
+        <h3>Alert feed — what the live radar pushes</h3>
+        <div class="feed" id="feed"></div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <div class="narr">
+      <div class="steplbl" id="steplbl">STEP 1 / 12</div>
+      <h2 id="title"></h2>
+      <p id="body"></p>
+    </div>
+    <div class="ctrl">
+      <div class="btns">
+        <button id="prev">◀ Back</button>
+        <button id="next" class="primary">Next ▶</button>
+      </div>
+      <div class="dots" id="dots"></div>
+      <div class="hint">← → arrow keys work too</div>
+    </div>
+  </footer>
+</div>
+
+<script>
+// ═══════════════════ DATA — reconstruction of the example session ═══════════════════
+// 5m candles [open, high, low, close], label = bar OPEN time. Hour 08 = idx 0-11,
+// hour 09 (qualifying candle 7549.25→7559.25) = 12-23, hour 10 (trade window) = 24-35.
+const C = [
+ ["08:00",7548.00,7548.75,7547.25,7547.50],["08:05",7547.50,7548.00,7546.50,7546.75],
+ ["08:10",7546.75,7547.50,7546.25,7547.25],["08:15",7547.25,7548.25,7547.00,7548.00],
+ ["08:20",7548.00,7548.50,7547.25,7547.75],["08:25",7547.75,7548.25,7546.75,7547.00],
+ ["08:30",7547.00,7548.75,7546.50,7548.50],["08:35",7548.50,7549.50,7548.00,7549.00],
+ ["08:40",7549.00,7549.75,7548.25,7548.75],["08:45",7548.75,7549.25,7548.00,7548.25],
+ ["08:50",7548.25,7549.00,7547.75,7548.75],["08:55",7548.75,7549.50,7548.25,7549.25],
+ ["09:00",7550.25,7550.50,7549.50,7549.75],["09:05",7549.75,7550.25,7549.25,7550.00],
+ ["09:10",7550.00,7551.25,7549.75,7551.00],["09:15",7551.00,7551.75,7550.50,7551.50],
+ ["09:20",7551.50,7552.75,7551.25,7552.50],["09:25",7552.50,7553.50,7552.25,7553.25],
+ ["09:30",7553.25,7555.00,7553.00,7554.75],["09:35",7554.75,7556.25,7554.25,7556.00],
+ ["09:40",7556.00,7557.00,7555.25,7556.50],["09:45",7556.50,7557.75,7556.00,7557.50],
+ ["09:50",7557.50,7559.25,7557.00,7558.75],["09:55",7558.75,7559.00,7558.00,7558.50],
+ ["10:00",7558.50,7558.75,7556.75,7557.00],["10:05",7557.00,7557.25,7554.50,7554.75],
+ ["10:10",7554.75,7555.00,7552.00,7553.25],["10:15",7553.25,7554.25,7552.75,7554.00],
+ ["10:20",7554.00,7555.75,7553.75,7555.50],["10:25",7555.50,7557.50,7555.25,7557.25],
+ ["10:30",7557.25,7560.00,7557.00,7559.50],["10:35",7559.50,7562.25,7558.50,7558.75],
+ ["10:40",7558.75,7559.00,7557.00,7557.25],["10:45",7557.25,7558.50,7556.50,7558.25],
+ ["10:50",7558.25,7559.25,7558.00,7559.00],["10:55",7559.00,7560.25,7558.75,7560.00],
+ ["11:00",7560.00,7561.00,7559.50,7560.75],["11:05",7560.75,7562.00,7560.50,7561.75],
+ ["11:10",7561.75,7562.00,7560.75,7561.50],["11:15",7561.50,7563.25,7561.25,7562.75],
+ ["11:20",7562.75,7564.50,7562.50,7564.25],["11:25",7564.25,7565.75,7564.00,7565.50],
+ ["11:30",7565.50,7567.25,7565.25,7567.00],["11:35",7567.00,7568.50,7566.50,7568.25],
+ ["11:40",7568.25,7568.75,7567.00,7567.25],["11:45",7567.25,7567.75,7566.25,7566.50],
+ ["11:50",7566.50,7567.00,7565.50,7565.75],["11:55",7565.75,7566.50,7565.25,7566.25]
+];
+const RATIO=[0,.236,.382,.5,.618,.786,1,1.618], RN=["0","23.6","38.2","50","61.8","78.6","100","161.8"];
+// grid #1: the 09:00 candle — matches the operator's chart exactly
+const G1={base:7549.25,r:10.00,x1:12,x2:36};
+// grid #2 (the roll): the 10:00 candle 7552.00→7562.25
+const G2={base:7552.00,r:10.25,x1:24,x2:52};
+const lv=g=>RATIO.map(k=>g.base+g.r*k);
+const md=g=>{const L=lv(g);return L.slice(0,-1).map((p,i)=>(p+L[i+1])/2);};
+
+// ═══════════════════ GEOMETRY ═══════════════════
+const W=1000,H=540,PL=8,PR=104,PT=26,PB=30,NSLOT=52;
+const PMIN=7545.5,PMAX=7571.5;
+const slot=(W-PL-PR)/NSLOT, cw=Math.min(11,slot*.62);
+const X=i=>PL+i*slot+slot/2;
+const Y=p=>PT+(PMAX-p)*(H-PT-PB)/(PMAX-PMIN);
+const F=p=>p.toFixed(2);
+
+// ═══════════════════ STEPS ═══════════════════
+const STEPS=[
+{t:"What you're looking at",clk:"09:00",cur:12,node:0,st:["IDLE","st-idle"],
+ b:"This is one real morning on MES, replayed. The system runs one loop every hour: the <b>1-hour chart decides IF</b> we trade, the <b>15-minute chart decides WHERE</b>, and the <b>5-minute chart decides WHEN</b>. Step through with the arrows — every card in the feed on the right is an alert the live radar would have pushed."},
+{t:"Most hours don't qualify",clk:"09:00",cur:12,node:0,st:["IDLE — BLOCKED","st-idle"],gates:"g08",
+ b:"At 09:00 the radar measures the finished 08:00 candle: <b>3.50 pts of range against a 9.50-pt gate</b> — blocked. No trade, no opinion. The gate is not a fixed number: every hour competes against the typical range <b>for that hour of day</b>, so a 9 AM candle is judged against other 9 AM candles, not against the overnight."},
+{t:"The :45 tell",clk:"09:45",cur:22,node:1,st:["ARMED","st-armed"],
+ b:"Three 15-minute bars into the 09:00 hour, price has already covered <b>8.50 pts — over 80% of the gate</b>. The radar arms and warns the desk fifteen minutes before the decision. Nothing is traded yet: qualification only ever happens at the hour close."},
+{t:"Qualification — six gates, all green",clk:"10:00",cur:24,node:2,st:["QUALIFIED · BULL","st-qual"],gates:"g09",
+ b:"The 09:00 candle closes: <b>10.00 pts</b> of height (gate 9.50), volume <b>1.4×</b> normal, an <b>83% body</b>, close in the top tenth of the range. That's conviction, not chop. The hour <b>qualifies</b> — and the next hour, 10:00–11:00, becomes the trade window."},
+{t:"The grid — levels and midlines",clk:"10:00",cur:24,node:2,st:["QUALIFIED · BULL","st-qual"],gates:"g09",grid:1,
+ b:"The fib is laid over the candle — 0 at <b>7549.25</b>, 100 at <b>7559.25</b> — and a <b>midline is drawn between every pair of levels</b>. Midlines are the pivots: acceptance above one rotates price to the next level; rejection sends it back. Note the midline <i>above</i> the candle: mid(100, 161.8) sits at <b>1.309× the range = 7562.25</b>, a classic exhaustion zone. Remember that number."},
+{t:"15m says WHERE",clk:"10:15",cur:27,node:3,st:["CONFIRMED","st-conf"],grid:1,conf:1,
+ b:"First 15-minute bar of the window: price dips through the <b>23.6 midline at 7552.25</b>, touches 7552.00, and closes back above it at 7553.25. That <b>dip-and-reclaim is the confirmation</b> — support is real, the pivot is set, and the 5-minute chart is now cleared to hunt an entry."},
+{t:"5m says WHEN",clk:"10:20",cur:28,node:4,st:["IN TRADE · LONG","st-trade"],grid:1,conf:1,trade:1,
+ b:"The next 5-minute bar pulls back into the 38.2–50 shelf and closes bullish above the pivot — that's the trigger. <b>Long 7554.00, stop 7552.00</b> just under the confirmed midline, targets at the <b>78.6 (7557.25 · 1.6R)</b> and the <b>100 (7559.25 · 2.6R)</b>. Structure sets every price. Nothing here is discretionary."},
+{t:"Structure pays",clk:"10:32",cur:31,node:4,st:["IN TRADE · RUNNER","st-trade"],grid:1,conf:1,trade:2,
+ b:"The 78.6 fills at 10:27 (<b>+3.25</b>), the runner's stop moves to breakeven, and the 100 fills on the push through 7559.25 (<b>+5.25</b>). Total adverse excursion after entry: <b>one tick</b>. That is what entering at the pivot — instead of chasing the move — buys you."},
+{t:"The exhaustion fade",clk:"10:40",cur:32,node:4,st:["IN TRADE · FADE","st-trade"],grid:1,conf:1,trade:2,fade:1,
+ b:"Price stretches to <b>7562.25 — the 1.309R midline</b>, dead-center of the classic 1.272–1.382 exhaustion cluster — and the very next close is back inside the range. That rejection is the one counter-trend signal the system takes: <b>short 7558.75 at half size</b>, stop above the extreme, target back at the 78.6."},
+{t:"The :45 changeover",clk:"10:45",cur:34,node:4,st:["PROTECT","st-trade"],grid:1,conf:1,trade:2,fade:2,ckpt:1,
+ b:"The fade pays at 7557.25 and the clock hits 45 minutes — the same changeover visible on the real chart at 10:45, hour after hour. From here the system <b>initiates nothing new</b>: stops go to breakeven and it waits for the hour to close."},
+{t:"The roll",clk:"11:00",cur:38,node:5,st:["ROLLED · NEW GRID","st-roll"],gates:"g10",grid:2,conf:1,trade:2,fade:2,ckpt:1,
+ b:"The 10:00 candle closes with <b>10.25 pts and 1.3× volume — it qualifies too</b>, so the grid rolls: new anchor 7552.00 → 7562.25, new window 11:00–12:00. One honest flag: its body is only 15%, which the body gate calls marginal. Whether marginal hours roll is a <b>parameter — and a good team debate</b>."},
+{t:"v1.1 — what five days of replay taught us",clk:"REPLAY",cur:38,node:5,st:["V1.1 UPGRADED","st-roll"],fixes:1,grid:2,conf:1,trade:2,fade:2,ckpt:1,
+ b:"We replayed five sessions — a crash day, two runaway trend days, two choppy ones — and the backtest exposed <b>four flaws, each now a guardrail in v1.1</b> (right panel). The costliest: the system's best hours were producing <b>zero trades</b>, because on true trend hours price never pulls back to a pivot. Watch what happens in the 11:00 window we just rolled into."},
+{t:"The trend hour — v1.0's blind spot",clk:"11:15",cur:39,node:5,st:["ACCEPTANCE","st-armed"],grid:2,conf:1,trade:2,fade:2,ckpt:1,accel:1,
+ b:"First 15-minute bar of the new window: price <b>never dips to a pivot</b> — it holds entirely above the 61.8 and closes beyond the 78.6. The old logic had no play here: no dip-and-reclaim, no confirm, no entry, and replay showed 50–70-point hours captured for nothing. v1.1 reads it differently: <b>acceptance of the upper grid IS the signal</b>. Setup C arms."},
+{t:"Setup C — acceptance continuation",clk:"11:20",cur:40,node:5,st:["IN TRADE · ACCEL","st-trade"],grid:2,conf:1,trade:2,fade:2,ckpt:1,accel:2,
+ b:"A 5-minute bar closes beyond the 100 with a directional body — the continuation trigger. <b>Long 7562.75, stop 7560.75</b> under the 78.6/100 midline, T1 at the <b>1.309 extension midline 7565.50 (1.4R)</b>, T2 at the <b>161.8 = 7568.50 (2.6R)</b>. Same discipline as the rotation entry — structure sets every price — just pointed at the hours that never retrace."},
+{t:"Trend pays — and the fade stays home",clk:"11:40",cur:50,node:5,st:["PROTECT","st-trade"],grid:2,conf:1,trade:2,fade:2,ckpt:1,accel:3,
+ b:"T1 fills at 11:29, the runner pays at the 161.8. Then price rolls over — but <b>no fade prints</b>: the extreme pushed beyond the 161.8, and v1.1 reads that as trend, not exhaustion. This guard killed the ugliest ticket in replay — an 18-point stop for 0.75 points of reward on Jun 23. A fade now needs the extreme <b>inside</b> the 161.8 and at least 1R on the ticket."},
+{t:"The whole loop — two hours, three setups",clk:"12:00",cur:50,node:5,st:["LOOP COMPLETE","st-qual"],ledger:1,grid:2,conf:1,trade:2,fade:2,ckpt:1,accel:3,
+ b:"The full cadence: <b>qualify → grid → confirm → rotate (Setup A) → fade the exhaustion (Setup B) → roll → ride the acceptance (Setup C)</b>. Ledger: +18.50 pts across three setups, one tick of adverse excursion on the continuation entries. The 1H decides IF, the 15m decides WHERE, the 5m decides WHEN — and the v1.1 guardrails decide when to stand down."}
+];
+
+const ALERTS=[
+ {s:2,t:"09:45",tag:"RADAR ARMED",m:"Hour developing 8.50 pts vs 9.50 gate — watch the 10:00 close"},
+ {s:3,t:"10:00",tag:"QUALIFIED · BULL",m:"10.00 pts · vol 1.4× · body 83% — grid set 7549.25 → 7559.25, window 10:00–11:00"},
+ {s:5,t:"10:15",tag:"15m CONFIRM",m:"Support held at 23.6 midline 7552.25 (dip 7552.00 · close 7553.25). 5m entry window live"},
+ {s:6,t:"10:20",tag:"ENTRY LONG",m:"E 7554.00 · SL 7552.00 · T1 7557.25 (1.6R) · T2 7559.25 (2.6R)"},
+ {s:7,t:"10:27",tag:"T1 FILLED",m:"+3.25 pts banked · runner stop → breakeven 7554.00"},
+ {s:7,t:"10:32",tag:"T2 FILLED",m:"Runner out at the 100 level 7559.25 · +5.25 pts"},
+ {s:8,t:"10:40",tag:"EXTENSION FADE",m:"Rejected 1.309R midline 7562.25 · SHORT ½ size 7558.75 · SL 7562.75 · T 7557.25"},
+ {s:9,t:"10:45",tag:"FADE T1 +1.50",m:"Stop → breakeven"},
+ {s:9,t:"10:45",tag:"45m CHECKPOINT",m:"Changeover risk — no new entries, protect open risk into the close"},
+ {s:10,t:"11:00",tag:"GRID ROLLED",m:"10:00 hour qualified (10.25 pts · vol 1.3×) — new grid 7552.00 → 7562.25, window 11:00–12:00"},
+ {s:12,t:"11:15",tag:"SETUP C ARMED",m:"15m held above the 61.8, closed beyond the 78.6 — acceptance, no pullback pivot. Watching for a 5m close beyond 100"},
+ {s:13,t:"11:20",tag:"ACCEL LONG",m:"E 7562.75 · SL 7560.75 · T1 7565.50 (1.4R) · T2 7568.50 (2.6R)"},
+ {s:14,t:"11:29",tag:"T1 FILLED",m:"+2.75 pts · runner stop → breakeven"},
+ {s:14,t:"11:38",tag:"T2 FILLED",m:"Runner out at the 161.8 = 7568.50 · +5.75 pts"},
+ {s:14,t:"11:40",tag:"FADE SUPPRESSED",m:"Extreme beyond the 161.8 — trend, not exhaustion (v1.1 guard; killed Jun 23's 0.04R ticket)"}
+];
+
+const GATES={
+ g08:{title:"Gates — 08:00 candle @ 09:00 close",v:["BLOCKED — height","v-block"],rows:[
+  ["Session","08:00 ET · in 07–13","pass"],["Height","3.50 vs 9.50 req","fail"],
+  ["Volume","—","na"],["Body","—","na"],["Close-loc","—","na"],["Full hour","12 × 5m bars","pass"]]},
+ g09:{title:"Gates — 09:00 candle @ 10:00 close",v:["QUALIFIED · BULL GRID","v-pass"],rows:[
+  ["Session","09:00 ET · in 07–13","pass"],["Height","10.00 ≥ 9.50 req","pass"],
+  ["Volume","1.4× ≥ 1.1× req","pass"],["Body","83% ≥ 45% req","pass"],
+  ["Close-loc","92% ≥ 60% req","pass"],["Full hour","12 × 5m bars","pass"]]},
+ g10:{title:"Gates — 10:00 candle @ 11:00 close",v:["ROLLED — BODY GATE IS THE DEBATE","v-roll"],rows:[
+  ["Session","10:00 ET · in 07–13","pass"],["Height","10.25 ≥ 9.60 req","pass"],
+  ["Volume","1.3× ≥ 1.1× req","pass"],["Body","15% — marginal","warn"],
+  ["Close-loc","78% ≥ 60% req","pass"],["Full hour","12 × 5m bars","pass"]]}
+};
+
+const NODES=["IDLE","ARMED","QUALIFIED","CONFIRMED","IN TRADE","ROLL"];
+
+// ═══════════════════ CHART RENDER ═══════════════════
+function gridSVG(g,dim,labelSkip){
+  const L=lv(g),M=md(g);let s="";
+  const x1=X(g.x1)-slot/2, x2=Math.min(X(g.x2)-slot/2,W-PR+4);
+  const op=dim?0.35:1;
+  s+=`<g opacity="${op}">`;
+  M.forEach(p=>{s+=`<line x1="${x1}" y1="${Y(p)}" x2="${x2}" y2="${Y(p)}" stroke="#93A5C4" stroke-width="0.8" stroke-dasharray="4 4" opacity="0.55"/>`;});
+  L.forEach((p,i)=>{
+    const main=i===0||i===6, ext=i===7;
+    s+=`<line x1="${x1}" y1="${Y(p)}" x2="${x2}" y2="${Y(p)}" stroke="${ext?'#7F9CF5':main?'var(--fibHi)':'var(--fib)'}" stroke-width="${main?1.8:1}" opacity="${ext?0.8:0.9}"/>`;
+    if(!(labelSkip&&!main&&!ext))
+      s+=`<text x="${x2+5}" y="${Y(p)+3.5}" fill="${ext?'#7F9CF5':main?'var(--fibHi)':'#8FA6C6'}" font-size="10" font-family="var(--mono)">${RN[i]} · ${F(p)}</text>`;
+  });
+  s+=`</g>`;
+  return s;
+}
+
+function render(si){
+  const S=STEPS[si];let s="";
+  // y gridlines
+  for(let p=7546;p<=7568;p+=2)
+    s+=`<line x1="${PL}" y1="${Y(p)}" x2="${W-PR}" y2="${Y(p)}" stroke="var(--line2)" stroke-width="0.5"/>`;
+  // hour ticks
+  [[0,"08:00"],[12,"09:00"],[24,"10:00"],[36,"11:00"],[48,"12:00"]].forEach(([i,t])=>{
+    const x=X(i)-slot/2;
+    s+=`<line x1="${x}" y1="${PT}" x2="${x}" y2="${H-PB}" stroke="var(--line)" stroke-width="0.6"/>`;
+    s+=`<text x="${x+4}" y="${H-10}" fill="var(--dim)" font-size="10" font-family="var(--mono)">${t}</text>`;
+  });
+  // window shade + qual box (grid 1)
+  if(S.grid>=1){
+    const bx1=X(12)-slot/2,bx2=X(24)-slot/2,bx3=X(36)-slot/2;
+    s+=`<rect x="${bx2}" y="${Y(7559.25)}" width="${bx3-bx2}" height="${Y(7549.25)-Y(7559.25)}" fill="var(--up)" opacity="0.05"/>`;
+    s+=`<rect x="${bx1}" y="${Y(7559.25)}" width="${bx2-bx1}" height="${Y(7549.25)-Y(7559.25)}" fill="#B07CE8" opacity="0.07" stroke="#B07CE8" stroke-opacity="0.5" stroke-width="1.2"/>`;
+    s+=`<text x="${bx1+4}" y="${Y(7559.25)-6}" fill="#B07CE8" font-size="9.5" font-family="var(--mono)" letter-spacing="1">QUALIFYING CANDLE</text>`;
+    s+=`<text x="${bx2+4}" y="${Y(7559.25)-6}" fill="var(--up)" font-size="9.5" font-family="var(--mono)" letter-spacing="1" opacity="0.85">TRADE WINDOW 10:00–11:00</text>`;
+    s+=gridSVG(G1,S.grid===2,S.grid===2);
+  }
+  if(S.grid===2){
+    const bx3=X(36)-slot/2;
+    s+=`<rect x="${bx3}" y="${Y(7562.25)}" width="${W-PR-bx3}" height="${Y(7552.00)-Y(7562.25)}" fill="#7F9CF5" opacity="0.05"/>`;
+    s+=`<text x="${bx3+4}" y="${Y(7562.25)-6}" fill="#7F9CF5" font-size="9.5" font-family="var(--mono)" letter-spacing="1">ROLLED · WINDOW 11:00–12:00</text>`;
+    s+=gridSVG(G2,false,false);
+  }
+  // trade lines
+  if(S.trade){
+    const xe=X(27),xEnd=X(33)+slot/2;
+    s+=`<line x1="${xe}" y1="${Y(7554)}" x2="${X(30)}" y2="${Y(7554)}" stroke="#FFFFFF" stroke-width="1.1" opacity="0.85"/>`;
+    s+=`<text x="${xe-4}" y="${Y(7554)+3.5}" text-anchor="end" fill="#FFF" font-size="9.5" font-family="var(--mono)">E 7554.00</text>`;
+    s+=`<line x1="${xe}" y1="${Y(7552)}" x2="${xEnd}" y2="${Y(7552)}" stroke="var(--dn)" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    s+=`<text x="${xe-4}" y="${Y(7552)+3.5}" text-anchor="end" fill="var(--dn)" font-size="9.5" font-family="var(--mono)">SL 7552.00</text>`;
+    const t1c=S.trade>=2?"var(--up)":"#3E6B60";
+    s+=`<line x1="${xe}" y1="${Y(7557.25)}" x2="${X(29)+slot/2}" y2="${Y(7557.25)}" stroke="${t1c}" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    s+=`<line x1="${xe}" y1="${Y(7559.25)}" x2="${X(30)+slot/2}" y2="${Y(7559.25)}" stroke="${t1c}" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    // entry marker
+    const ex=X(27),ey=Y(7552.75)+8;
+    s+=`<polygon points="${ex-5},${ey+9} ${ex+5},${ey+9} ${ex},${ey}" fill="var(--up)"/>`;
+    if(S.trade>=2){
+      s+=`<text x="${X(29)}" y="${Y(7557.5)-8}" fill="var(--up)" font-size="10" font-family="var(--mono)" text-anchor="middle">T1 ✓</text>`;
+      s+=`<text x="${X(30)}" y="${Y(7560.0)-8}" fill="var(--up)" font-size="10" font-family="var(--mono)" text-anchor="middle">T2 ✓</text>`;
+    }
+  }
+  // fade
+  if(S.fade){
+    const fx=X(31);
+    s+=`<polygon points="${fx-5},${Y(7562.25)-13} ${fx+5},${Y(7562.25)-13} ${fx},${Y(7562.25)-4}" fill="var(--sig)"/>`;
+    s+=`<text x="${fx}" y="${Y(7562.25)-17}" fill="var(--sig)" font-size="10" font-family="var(--mono)" text-anchor="middle">FADE ½</text>`;
+    s+=`<line x1="${X(31)}" y1="${Y(7562.75)}" x2="${X(33)+slot/2}" y2="${Y(7562.75)}" stroke="var(--dn)" stroke-width="1" stroke-dasharray="5 3" opacity="0.8"/>`;
+    if(S.fade>=2)
+      s+=`<text x="${X(32)}" y="${Y(7557.0)+16}" fill="var(--sig)" font-size="10" font-family="var(--mono)" text-anchor="middle">+1.50 ✓</text>`;
+  }
+  // checkpoint
+  if(S.ckpt){
+    const cx=X(33)-slot/2;
+    s+=`<line x1="${cx}" y1="${PT}" x2="${cx}" y2="${H-PB}" stroke="var(--sig)" stroke-width="1" stroke-dasharray="2 4" opacity="0.7"/>`;
+    s+=`<text x="${cx+4}" y="${PT+11}" fill="var(--sig)" font-size="9.5" font-family="var(--mono)">:45 CHECKPOINT</text>`;
+  }
+  // confirm pulse
+  if(S.conf){
+    const cx=X(26),cy=Y(7552.25);
+    if(si===5) s+=`<circle class="pulse" cx="${cx}" cy="${cy}" r="9" fill="none" stroke="var(--up)" stroke-width="2"/>`;
+    s+=`<circle cx="${cx}" cy="${cy}" r="3.4" fill="var(--up)"/>`;
+    s+=`<text x="${cx}" y="${cy+18}" fill="var(--up)" font-size="9.5" font-family="var(--mono)" text-anchor="middle">15m ✓</text>`;
+  }
+  // Setup C — acceptance continuation (v1.1)
+  if(S.accel){
+    const mx=X(38),my=Y(7560.00);
+    if(si===12) s+=`<circle class="pulse" cx="${mx}" cy="${my}" r="9" fill="none" stroke="var(--sig)" stroke-width="2"/>`;
+    s+=`<circle cx="${mx}" cy="${my}" r="3.4" fill="var(--sig)"/>`;
+    s+=`<text x="${mx}" y="${my+18}" fill="var(--sig)" font-size="9.5" font-family="var(--mono)" text-anchor="middle">15m ✓ accept</text>`;
+  }
+  if(S.accel>=2){
+    const xe=X(39);
+    s+=`<line x1="${xe}" y1="${Y(7562.75)}" x2="${X(42)}" y2="${Y(7562.75)}" stroke="#FFFFFF" stroke-width="1.1" opacity="0.85"/>`;
+    s+=`<text x="${xe-4}" y="${Y(7562.75)+3.5}" text-anchor="end" fill="#FFF" font-size="9.5" font-family="var(--mono)">E 7562.75</text>`;
+    s+=`<line x1="${xe}" y1="${Y(7560.75)}" x2="${X(44)}" y2="${Y(7560.75)}" stroke="var(--dn)" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    s+=`<text x="${xe-4}" y="${Y(7560.75)+3.5}" text-anchor="end" fill="var(--dn)" font-size="9.5" font-family="var(--mono)">SL 7560.75</text>`;
+    const tc=S.accel>=3?"var(--up)":"#3E6B60";
+    s+=`<line x1="${xe}" y1="${Y(7565.50)}" x2="${X(41)+slot/2}" y2="${Y(7565.50)}" stroke="${tc}" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    s+=`<line x1="${xe}" y1="${Y(7568.50)}" x2="${X(43)+slot/2}" y2="${Y(7568.50)}" stroke="${tc}" stroke-width="1.1" stroke-dasharray="5 3"/>`;
+    const ay=Y(7561.25)+8;
+    s+=`<polygon points="${xe-5},${ay+9} ${xe+5},${ay+9} ${xe},${ay}" fill="var(--up)"/>`;
+    s+=`<text x="${xe}" y="${ay+21}" fill="var(--up)" font-size="9.5" font-family="var(--mono)" text-anchor="middle">ACCEL</text>`;
+    if(S.accel>=3){
+      s+=`<text x="${X(41)}" y="${Y(7565.75)-8}" fill="var(--up)" font-size="10" font-family="var(--mono)" text-anchor="middle">T1 ✓</text>`;
+      s+=`<text x="${X(43)}" y="${Y(7568.75)-8}" fill="var(--up)" font-size="10" font-family="var(--mono)" text-anchor="middle">T2 ✓ 161.8</text>`;
+      s+=`<text x="${X(45)}" y="${Y(7568.00)-14}" fill="var(--sig)" font-size="9.5" font-family="var(--mono)" text-anchor="middle">fade suppressed</text>`;
+    }
+  }
+  // pre-arm marker
+  if(si===2){
+    const ax=X(21),ay=Y(7557.75)-10;
+    s+=`<circle class="pulse" cx="${ax}" cy="${ay}" r="8" fill="none" stroke="var(--sig)" stroke-width="2"/>`;
+    s+=`<text x="${ax}" y="${ay-10}" fill="var(--sig)" font-size="10" font-family="var(--mono)" text-anchor="middle">:45 ARMED</text>`;
+  }
+  // candles
+  for(let i=0;i<S.cur&&i<C.length;i++){
+    const [,o,h,l,c]=C[i],up=c>=o,col=up?"var(--up)":"var(--dn)",x=X(i);
+    s+=`<line x1="${x}" y1="${Y(h)}" x2="${x}" y2="${Y(l)}" stroke="${col}" stroke-width="1"/>`;
+    const yt=Y(Math.max(o,c)),yb=Y(Math.min(o,c));
+    s+=`<rect x="${x-cw/2}" y="${yt}" width="${cw}" height="${Math.max(1.2,yb-yt)}" fill="${up?col:'var(--bg)'}" stroke="${col}" stroke-width="1"/>`;
+  }
+  document.getElementById("chart").innerHTML=s;
+}
+
+// ═══════════════════ PANELS ═══════════════════
+function renderSide(si){
+  const S=STEPS[si];
+  const st=document.getElementById("status");
+  st.textContent=S.st[0];st.className="status "+S.st[1];
+  document.getElementById("machine").innerHTML=NODES.map((n,i)=>
+    `<span class="node ${i===S.node?'on':i<S.node?'done':''}">${i<S.node?'✓ ':''}${n}</span>${i<NODES.length-1?'<span class="arr">▸</span>':''}`).join("");
+  const gp=document.getElementById("gates"),vd=document.getElementById("verdict"),gt=document.getElementById("gatetitle");
+  if(S.ledger){
+    gt.textContent="The session's ledger";
+    gp.innerHTML=`<div class="led">
+      <div class="row"><span>A · Long 7554.00 → 78.6</span><b class="pos">+3.25</b></div>
+      <div class="row"><span>A · Runner → 100</span><b class="pos">+5.25</b></div>
+      <div class="row"><span>B · Fade 7558.75 → 78.6 (½)</span><b class="pos">+1.50</b></div>
+      <div class="row"><span>C · Accel 7562.75 → 1.309</span><b class="pos">+2.75</b></div>
+      <div class="row"><span>C · Runner → 161.8</span><b class="pos">+5.75</b></div>
+      <div class="row"><span>Max adverse excursion</span><b>0.25</b></div>
+      <div class="row"><span><b>Net, pts (full-size legs)</b></span><b class="pos">+18.50</b></div></div>`;
+    vd.innerHTML=`<div class="verdict v-pass">1H QUALIFIES · 15m CONFIRMS · 5m TIMES</div>`;
+  }else if(S.fixes){
+    gt.textContent="v1.1 guardrails — from replay findings";
+    gp.innerHTML=`
+      <div class="gate"><span class="gl">Blindness</span><span class="gv">crash hour capped at 2× baseline EMA</span><span class="pill p-pass">FIXED</span></div>
+      <div class="gate"><span class="gl">Trend hours</span><span class="gv">Setup C — acceptance continuation</span><span class="pill p-warn">NEW</span></div>
+      <div class="gate"><span class="gl">Fade risk</span><span class="gv">skip beyond 161.8 · min 1R ticket</span><span class="pill p-pass">FIXED</span></div>
+      <div class="gate"><span class="gl">Double-fire</span><span class="gv">one entry per confirmed pivot</span><span class="pill p-pass">FIXED</span></div>
+      <div class="gate"><span class="gl">Session</span><span class="gv">last qualifying hour 13 → 14 ET</span><span class="pill p-pass">TUNED</span></div>
+      <div class="gate"><span class="gl">Exit mode</span><span class="gv">flatten vs trail vs roll-hold</span><span class="pill p-na">TESTING</span></div>`;
+    vd.innerHTML=`<div class="verdict v-pass">4 FLAWS FOUND · 4 FIXED · 1 EXPERIMENT QUEUED</div>`;
+  }else if(S.gates){
+    const g=GATES[S.gates];gt.textContent=g.title;
+    gp.innerHTML=g.rows.map(r=>`<div class="gate"><span class="gl">${r[0]}</span><span class="gv">${r[1]}</span><span class="pill p-${r[2]}">${r[2]==='pass'?'PASS':r[2]==='fail'?'FAIL':r[2]==='warn'?'MARGINAL':'—'}</span></div>`).join("");
+    vd.innerHTML=`<div class="verdict ${g.v[1]}">${g.v[0]}</div>`;
+  }else{
+    gt.textContent="Qualification gates";
+    gp.innerHTML=`<div class="gate"><span class="gl">Session</span><span class="gv">hour-of-day 07–13 ET</span><span class="pill p-na">GATE</span></div>
+      <div class="gate"><span class="gl">Height</span><span class="gv">≥ 1.25× that hour's normal range</span><span class="pill p-na">GATE</span></div>
+      <div class="gate"><span class="gl">Volume</span><span class="gv">≥ 1.1× that hour's normal volume</span><span class="pill p-na">GATE</span></div>
+      <div class="gate"><span class="gl">Body</span><span class="gv">≥ 45% of range (conviction)</span><span class="pill p-na">GATE</span></div>
+      <div class="gate"><span class="gl">Close-loc</span><span class="gv">close in momentum third</span><span class="pill p-na">GATE</span></div>
+      <div class="gate"><span class="gl">Full hour</span><span class="gv">12 five-minute bars</span><span class="pill p-na">GATE</span></div>`;
+    vd.innerHTML="";
+  }
+  const vis=ALERTS.filter(a=>a.s<=si);
+  document.getElementById("feed").innerHTML=vis.length?
+    vis.slice().reverse().map((a,i)=>`<div class="al${i===0&&a.s===si?' new':''}"><span class="at">${a.t} ET · ${a.tag}</span><div class="am">${a.m}</div></div>`).join("")
+    :`<div class="empty">No alerts yet — the radar is measuring.</div>`;
+}
+
+// ═══════════════════ TRANSPORT ═══════════════════
+let cur=0;
+const dots=document.getElementById("dots");
+STEPS.forEach((s,i)=>{const d=document.createElement("button");d.className="dot";d.title=s.t;d.setAttribute("aria-label","Step "+(i+1)+": "+s.t);d.onclick=()=>go(i);dots.appendChild(d);});
+function go(i){
+  cur=Math.max(0,Math.min(STEPS.length-1,i));
+  const S=STEPS[cur];
+  document.getElementById("steplbl").textContent=`STEP ${cur+1} / ${STEPS.length}`;
+  document.getElementById("title").textContent=S.t;
+  document.getElementById("body").innerHTML=S.b;
+  document.getElementById("clock").textContent=S.clk;
+  document.getElementById("prev").disabled=cur===0;
+  document.getElementById("next").disabled=cur===STEPS.length-1;
+  [...dots.children].forEach((d,j)=>d.className="dot"+(j===cur?" on":j<cur?" past":""));
+  render(cur);renderSide(cur);
+}
+document.getElementById("prev").onclick=()=>go(cur-1);
+document.getElementById("next").onclick=()=>go(cur+1);
+addEventListener("keydown",e=>{if(e.key==="ArrowRight")go(cur+1);if(e.key==="ArrowLeft")go(cur-1);});
+go(0);
+</script>

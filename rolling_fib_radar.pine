@@ -1,0 +1,551 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════
+//  ROLLING FIB RADAR  [MES/ES]  v1.1
+//  v1.1 (replay findings): outlier-capped baselines (no post-crash blindness) ·
+//  Setup C acceptance-continuation for no-pullback trend hours · fade RR gate +
+//  skip beyond 161.8 · one Setup-A entry per confirmed pivot · qual hours to 14:00
+//  Load on a 5-minute chart. Internally aggregates 1H (qualification)
+//  and 15m (confirmation); executes signal logic on 5m closes.
+//  Alerts: create ONE alert on this indicator → "Any alert() function call".
+// ════════════════════════════════════════════════════════════════
+indicator("Rolling Fib Radar [MES/ES]", shorttitle = "RollFib",
+     overlay = true, max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+
+// ════════════════════════════════════════════════════════════════
+//  ① INPUTS
+// ════════════════════════════════════════════════════════════════
+string GQ = "① Qualification (1H candle)"
+string tzIn      = input.string("America/New_York", "Session timezone", group = GQ)
+int    qStartH   = input.int(7,  "First qualifying hour [0-23]", minval = 0, maxval = 23, group = GQ)
+int    qEndH     = input.int(14, "Last qualifying hour [0-23]",  minval = 0, maxval = 23, group = GQ)
+string rangeMode = input.string("Session median", "Expected-range model",
+     options = ["Session median", "Seasonal (hour-of-day)"], group = GQ)
+float  kRange    = input.float(1.25, "Height gate — R >= k x expected [x]", step = 0.05, group = GQ)
+float  minAbsPts = input.float(8.0,  "Absolute minimum height [pts]", step = 0.5, group = GQ)
+float  kVol      = input.float(1.10, "Volume gate — V >= k x expected [x] (0 = off)", step = 0.05, group = GQ)
+float  minBody   = input.float(0.45, "Minimum body/range [frac]", step = 0.05, group = GQ)
+float  minCLV    = input.float(0.60, "Minimum close-location [frac]", step = 0.05, group = GQ)
+int    seasLen   = input.int(10, "Seasonal EMA length [days]", minval = 3, group = GQ)
+float  armFrac   = input.float(0.80, ":45 pre-arm fraction of height gate [frac]", step = 0.05, group = GQ)
+float  capOut    = input.float(2.0,  "Baseline outlier cap [x EMA] (0 = off)", step = 0.25, group = GQ)
+float  decayBoost = input.float(2.0, "Baseline decay boost — falls x faster than it rises", minval = 1.0, step = 0.5, group = GQ)
+
+string GT = "② Trade window (hour H+1)"
+int    maxEntries = input.int(3,  "Max entries per trade hour", minval = 1, maxval = 5, group = GT)
+int    cutoffMin  = input.int(40, "Entry cutoff [min into trade hour]", minval = 10, maxval = 55, group = GT)
+string stopMode   = input.string("Below pivot midline", "Stop placement",
+     options = ["Below pivot midline", "Below zone level"], group = GT)
+int    stopBufTks = input.int(2, "Stop buffer [ticks]", minval = 0, group = GT)
+float  minRR      = input.float(1.2, "Minimum RR to T1 [x]", step = 0.1, group = GT)
+bool   enableFade = input.bool(true, "Extension-fade signal (counter-trend, reduce size)", group = GT)
+float  fadeMinRR   = input.float(1.0, "Fade minimum RR to T1 [x]", step = 0.1, group = GT)
+bool   fadeSkipExt = input.bool(true, "Skip fade if price exceeded 161.8", group = GT)
+bool   enableAccel = input.bool(true, "Acceptance-continuation entry (trend hours)", group = GT)
+bool   onePerPivot = input.bool(true, "One Setup-A entry per confirmed pivot", group = GT)
+float  retestFrac  = input.float(0.08, "Setup A: retest proximity to pivot [frac of grid]", step = 0.01, group = GT)
+float  maxRiskFrac = input.float(0.22, "Setup A: max risk [frac of grid]", step = 0.01, group = GT)
+float  maxT1RR     = input.float(2.5,  "Setup A: max RR to T1 [x]", step = 0.1, group = GT)
+int    maxPivotIdx = input.int(3, "Setup A: deepest pivot midline [0-5]", minval = 0, maxval = 5, group = GT)
+float  maxOvershoot = input.float(0.12, "Setup C: max break overshoot [frac of grid]", step = 0.01, group = GT)
+
+string GV = "③ Visuals"
+bool   showMids = input.bool(true, "Show midlines", group = GV)
+bool   keepPast = input.bool(true, "Keep past grids on chart", group = GV)
+color  bullCol  = input.color(color.teal, "Bull grid accent", group = GV)
+color  bearCol  = input.color(color.red,  "Bear grid accent", group = GV)
+
+// ════════════════════════════════════════════════════════════════
+//  ② CONSTANTS & STATE
+// ════════════════════════════════════════════════════════════════
+float tickSz = syminfo.mintick                       // BUG-02: always exchange mintick, never user input
+
+var float[]  RATIOS = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618)
+var string[] RNAME  = array.from("0", "23.6", "38.2", "50", "61.8", "78.6", "100", "161.8")
+
+// ── 1H accumulators (lifecycle: reset at every hour boundary) ──
+var float hO = na          // open of developing hour
+var float hH = na          // high of developing hour
+var float hL = na          // low of developing hour
+var float hV = 0.0         // volume of developing hour
+var int   hBars = 0        // 5m bars accumulated this hour
+var int   hStartBar = 0    // bar_index of first 5m bar of hour
+var bool  armedFlag = false // :45 pre-arm fired for this hour
+
+// ── 15m accumulators ──
+var float m15H = na
+var float m15L = na
+
+// ── Seasonal baselines (lifecycle: persist whole session, keyed by hour-of-day) ──
+var map<int, float> rngEma = map.new<int, float>()   // E[hourly range | hour-of-day]
+var map<int, float> volEma = map.new<int, float>()   // E[hourly volume | hour-of-day]
+var float[] hrRanges = array.new_float()             // rolling 14 completed hourly ranges (ATR fallback)
+float seasAlpha = 2.0 / (seasLen + 1)
+
+// ── Grid state (lifecycle: rebuilt on every qualification, cleared on roll) ──
+var int     dir  = 0                 // +1 bull grid, -1 bear grid
+var float   gBase = na               // fib 0 price (low of bull candle / high of bear candle)
+var float   gR    = na               // qualifying candle range [pts]
+var float[] lvP   = array.new_float() // 8 main level prices
+var float[] mdP   = array.new_float() // 7 midline prices
+var int     qCloseT = na             // time_close of qualifying hour
+var int     winEndT = na             // end of trade window
+var int     qHod    = na             // hour-of-day that qualified
+var string  gState  = "IDLE"         // IDLE | ACTIVE | CONFIRMED | DEAD | EXPIRED
+var int     supIdx  = -1             // confirmed pivot midline index (0..5)
+var int     entriesUsed = 0
+var bool    extTouched  = false      // price tagged extension midline (1.309R)
+var float   extExtreme  = na         // furthest excursion beyond it
+var bool    fadeFired   = false
+var bool    pivotUsed   = false      // Setup A already fired on the current pivot
+var int     confirmBar  = -1         // bar that set the pivot — no same-bar confirm+trigger
+var bool    accelArmed  = false      // 15m accepted upper grid without giving a pullback pivot
+var bool    accelUsed   = false      // Setup C fired for this grid
+var bool    ckpt45Done  = false
+var string  blockReason = "—"
+var string  lastSignal  = "—"
+
+// ── Visual object pools (BUG-01: every object tracked, pools capped) ──
+var line[]  gLines  = array.new_line()
+var label[] gLabels = array.new_label()
+var box[]   gBoxes  = array.new_box()
+var line[]  oldLines  = array.new_line()
+var label[] oldLabels = array.new_label()
+var box[]   oldBoxes  = array.new_box()
+var label[] sigLabels = array.new_label()
+
+// ════════════════════════════════════════════════════════════════
+//  ③ HELPERS
+// ════════════════════════════════════════════════════════════════
+// Direction-aware comparisons: "a beyond b in grid direction"
+gtD(float a, float b) => dir == 1 ? a > b : a < b
+geD(float a, float b) => dir == 1 ? a >= b : a <= b
+
+// Expected hourly range for an hour-of-day (seasonal EMA, ATR fallback while warming up)
+expRangeFor(int hod) =>
+    // median of recent session hours: regime-proof (crash can't inflate, holiday heals fast)
+    float med = na
+    int n = array.size(hrRanges)
+    if n >= 5
+        float[] srt = array.copy(hrRanges)
+        array.sort(srt, order.ascending)
+        med := array.get(srt, n / 2)
+    float sR = rngEma.get(hod)
+    rangeMode == "Session median" ? med : (na(sR) ? med : sR)
+
+// Next main fib level beyond price p in grid direction (retracement side only, 0..100)
+nextLevelAbove(float p) =>
+    float r = na
+    for i = 0 to 6
+        float lp = array.get(lvP, i)
+        if na(r) and gtD(lp, p)
+            r := lp
+    r
+
+// Signal labels: capped sticky pool
+keepSig(label id) =>
+    array.push(sigLabels, id)
+    if array.size(sigLabels) > 60
+        label.delete(array.shift(sigLabels))
+
+// Archive or delete the current grid's drawings before rolling a new grid
+archiveGrid() =>
+    if keepPast
+        while array.size(gLines) > 0
+            array.push(oldLines, array.shift(gLines))
+        while array.size(gLabels) > 0
+            array.push(oldLabels, array.shift(gLabels))
+        while array.size(gBoxes) > 0
+            array.push(oldBoxes, array.shift(gBoxes))
+        while array.size(oldLines) > 200
+            line.delete(array.shift(oldLines))
+        while array.size(oldLabels) > 150
+            label.delete(array.shift(oldLabels))
+        while array.size(oldBoxes) > 20
+            box.delete(array.shift(oldBoxes))
+    else
+        while array.size(gLines) > 0
+            line.delete(array.shift(gLines))
+        while array.size(gLabels) > 0
+            label.delete(array.shift(gLabels))
+        while array.size(gBoxes) > 0
+            box.delete(array.shift(gBoxes))
+
+// ════════════════════════════════════════════════════════════════
+//  ④ TIMEFRAME GUARD & HTF AGGREGATION
+// ════════════════════════════════════════════════════════════════
+bool tfOk = timeframe.in_seconds() == 300            // this script is calibrated for the 5m chart
+
+bool newHourBar = ta.change(time("60")) != 0
+if newHourBar
+    hO := open
+    hH := high
+    hL := low
+    hV := nz(volume)
+    hBars := 1
+    hStartBar := bar_index
+    armedFlag := false
+else
+    hH := math.max(nz(hH, high), high)
+    hL := math.min(nz(hL, low), low)
+    hV += nz(volume)
+    hBars += 1
+
+bool new15Bar = ta.change(time("15")) != 0
+if new15Bar
+    m15H := high
+    m15L := low
+else
+    m15H := math.max(nz(m15H, high), high)
+    m15L := math.min(nz(m15L, low), low)
+
+// BUG-04: decisions fire on bars that CLOSE the period (time_close), never one bar late
+bool hourClose = barstate.isconfirmed and minute(time_close, tzIn) == 0
+bool m15Close  = barstate.isconfirmed and minute(time_close, tzIn) % 15 == 0
+
+// ════════════════════════════════════════════════════════════════
+//  ⑤ WINDOW EXPIRY (before any new processing)
+// ════════════════════════════════════════════════════════════════
+if tfOk and not na(winEndT) and time_close > winEndT and gState != "IDLE" and gState != "EXPIRED"
+    gState := "EXPIRED"
+    lastSignal := "Window closed"
+
+// ════════════════════════════════════════════════════════════════
+//  ⑥ :45 PRE-ARM  (qualification usually knowable by the :45 close)
+// ════════════════════════════════════════════════════════════════
+if barstate.isconfirmed and tfOk and not na(hO) and hBars >= 9 and minute(time_close, tzIn) == 45 and not armedFlag
+    int hodA = hour(time, tzIn)
+    if hodA >= qStartH and hodA <= qEndH
+        float expA = expRangeFor(hodA)
+        float gateA = math.max(kRange * nz(expA), minAbsPts)
+        if not na(expA) and (hH - hL) >= armFrac * gateA
+            armedFlag := true
+            lastSignal := "ARMED :45 — " + str.tostring(hH - hL, "#.##") + " pts developing"
+            alert("ROLLING FIB — RADAR ARMED (" + syminfo.ticker + "): hour developing "
+                 + str.tostring(hH - hL, "#.##") + " pts vs gate " + str.tostring(gateA, "#.##")
+                 + ". Watch the :00 close.", alert.freq_once_per_bar_close)
+
+// ════════════════════════════════════════════════════════════════
+//  ⑦ QUALIFICATION at the hour close  (evaluate gates BEFORE updating baselines)
+// ════════════════════════════════════════════════════════════════
+if hourClose and tfOk and not na(hO) and hBars >= 12
+    int   hod   = hour(time, tzIn)
+    float R     = hH - hL
+    float bodyF = R > 0 ? math.abs(close - hO) / R : 0.0
+    float clvB  = R > 0 ? (close - hL) / R : 0.0
+    float clvS  = R > 0 ? (hH - close) / R : 0.0
+    float expR  = expRangeFor(hod)
+    float sV    = volEma.get(hod)
+    float volRatio = na(sV) or sV == 0 ? na : hV / sV
+
+    bool inQualSession = hod >= qStartH and hod <= qEndH
+    bool warm   = not na(expR)
+    float gateR = math.max(kRange * nz(expR), minAbsPts)
+    bool hgtOk  = warm and R >= gateR
+    bool volOk  = kVol <= 0 or na(volRatio) or volRatio >= kVol
+    bool bodyOk = bodyF >= minBody
+    bool isBull = close > hO and clvB >= minCLV
+    bool isBear = close < hO and clvS >= minCLV
+
+    if inQualSession
+        blockReason := not warm ? "Warmup — building hour stats"
+             : not hgtOk ? "Height " + str.tostring(R, "#.##") + " < " + str.tostring(gateR, "#.##")
+             : not volOk ? "Volume " + str.tostring(volRatio, "#.##") + "x < " + str.tostring(kVol, "#.##") + "x"
+             : not bodyOk ? "Body " + str.tostring(bodyF * 100, "#") + "% < " + str.tostring(minBody * 100, "#") + "%"
+             : not (isBull or isBear) ? "Close-location weak (wick candle)"
+             : "—"
+
+    if inQualSession and hgtOk and volOk and bodyOk and (isBull or isBear)
+        // ── QUALIFIED → build / roll the grid ──
+        archiveGrid()
+        dir     := isBull ? 1 : -1
+        gBase   := isBull ? hL : hH
+        gR      := R
+        qCloseT := time_close
+        winEndT := time_close + 60 * 60 * 1000
+        qHod    := hod
+        array.clear(lvP)
+        array.clear(mdP)
+        for i = 0 to 7
+            array.push(lvP, gBase + dir * gR * array.get(RATIOS, i))
+        for i = 0 to 6
+            array.push(mdP, (array.get(lvP, i) + array.get(lvP, i + 1)) / 2.0)
+        gState := "ACTIVE"
+        supIdx := -1
+        entriesUsed := 0
+        extTouched := false
+        extExtreme := na
+        fadeFired := false
+        pivotUsed := false
+        accelArmed := false
+        accelUsed := false
+        ckpt45Done := false
+        blockReason := "—"
+        lastSignal := "QUALIFIED " + (dir == 1 ? "BULL " : "BEAR ") + str.tostring(R, "#.##") + " pts"
+
+        // ── draw grid: qualifying-hour box + trade-window shading + levels + midlines ──
+        int x1 = hStartBar
+        int x2 = bar_index + 12
+        color acc = dir == 1 ? bullCol : bearCol
+        box qb = box.new(x1, hH, bar_index, hL, border_color = color.new(color.purple, 20),
+             bgcolor = color.new(color.purple, 88), border_width = 2)
+        array.push(gBoxes, qb)
+        box wb = box.new(bar_index, hH, x2, hL, border_color = color.new(acc, 75),
+             bgcolor = color.new(acc, 94))
+        array.push(gBoxes, wb)
+        for i = 0 to 7
+            float p = array.get(lvP, i)
+            color lc = i == 7 ? color.new(color.blue, 20) : i == 0 or i == 6 ? color.new(color.gray, 10) : color.new(acc, 25)
+            line ln = line.new(x1, p, x2, p, color = lc, width = i == 0 or i == 6 ? 2 : 1)
+            array.push(gLines, ln)
+            label lb = label.new(x2, p, array.get(RNAME, i) + "  " + str.tostring(p, format.mintick),
+                 style = label.style_label_left, color = color.new(color.black, 40),
+                 textcolor = color.white, size = size.small)
+            array.push(gLabels, lb)
+        if showMids
+            for i = 0 to 6
+                float p = array.get(mdP, i)
+                line ml = line.new(x1, p, x2, p, color = color.new(color.white, 55), style = line.style_dashed)
+                array.push(gLines, ml)
+        alert("ROLLING FIB — QUALIFIED " + (dir == 1 ? "BULL" : "BEAR") + " (" + syminfo.ticker + "): "
+             + str.tostring(gR, "#.##") + " pts, grid 0=" + str.tostring(array.get(lvP, 0), format.mintick)
+             + " 100=" + str.tostring(array.get(lvP, 6), format.mintick)
+             + ". Trade window = next hour. Wait for 15m confirm.", alert.freq_once_per_bar_close)
+
+// ── Seasonal baseline update AFTER evaluation (every completed full hour, all sessions) ──
+if hourClose and not na(hO) and hBars >= 12
+    int   hodU = hour(time, tzIn)
+    float RU   = hH - hL
+    float VU   = hV
+    float pr = rngEma.get(hodU)
+    // winsorize: an outlier hour (crash/news) may enter the baseline at no more than
+    // capOut × the current EMA, so one wild hour cannot blind the radar for days after
+    if capOut > 0 and not na(pr)
+        RU := math.min(RU, pr * capOut)
+    // asymmetric decay: baselines fall decayBoost× faster than they rise, so the gate
+    // renormalizes within days (not weeks) after a volatility spike
+    float aR = not na(pr) and RU < pr ? math.min(seasAlpha * decayBoost, 1.0) : seasAlpha
+    rngEma.put(hodU, na(pr) ? RU : pr + aR * (RU - pr))
+    float pv = volEma.get(hodU)
+    if capOut > 0 and not na(pv)
+        VU := math.min(VU, pv * capOut)
+    float aV = not na(pv) and VU < pv ? math.min(seasAlpha * decayBoost, 1.0) : seasAlpha
+    volEma.put(hodU, na(pv) ? VU : pv + aV * (VU - pv))
+    if hodU >= qStartH and hodU <= qEndH
+        array.push(hrRanges, RU)
+        if array.size(hrRanges) > 14
+            array.shift(hrRanges)
+
+// ════════════════════════════════════════════════════════════════
+//  ⑧ TRADE WINDOW LOGIC (hour H+1)
+// ════════════════════════════════════════════════════════════════
+bool  inWin      = tfOk and not na(winEndT) and time_close > nz(qCloseT) and time_close <= winEndT
+float elapsedMin = inWin ? (time_close - qCloseT) / 60000.0 : na
+
+// ── 15m CONFIRMATION: dip through a midline and close back beyond it ──
+if inWin and m15Close and (gState == "ACTIVE" or gState == "CONFIRMED")
+    if gtD(array.get(lvP, 0), close)
+        // 15m close beyond fib 0 against the grid → thesis dead
+        gState := "DEAD"
+        lastSignal := "INVALIDATED — 15m close beyond 0"
+        alert("ROLLING FIB — INVALIDATED (" + syminfo.ticker + "): 15m closed beyond fib 0 ("
+             + str.tostring(array.get(lvP, 0), format.mintick) + "). Stand down.", alert.freq_once_per_bar_close)
+    else
+        int cand = -1
+        for i = 0 to 5
+            float mp = array.get(mdP, i)
+            bool dipped = dir == 1 ? m15L <= mp : m15H >= mp
+            if dipped and gtD(close, mp)
+                cand := i
+        if cand >= 0 and (gState == "ACTIVE" or cand != supIdx)
+            supIdx := cand
+            pivotUsed := false
+            confirmBar := bar_index
+            gState := "CONFIRMED"
+            string zn = array.get(RNAME, cand) + "/" + array.get(RNAME, cand + 1) + " midline"
+            lastSignal := (dir == 1 ? "Support" : "Resistance") + " @ " + zn
+            label cf = label.new(bar_index, array.get(mdP, cand), "15m ✓ " + zn,
+                 style = dir == 1 ? label.style_label_up : label.style_label_down,
+                 color = color.new(color.gray, 30), textcolor = color.white, size = size.tiny)
+            keepSig(cf)
+            alert("ROLLING FIB — 15m CONFIRM (" + syminfo.ticker + "): "
+                 + (dir == 1 ? "support" : "resistance") + " held at " + zn + " ("
+                 + str.tostring(array.get(mdP, cand), format.mintick)
+                 + "). 5m entry window is live.", alert.freq_once_per_bar_close)
+        // Trend-hour acceptance: the 15m held above the 61.8 and closed beyond the 78.6
+        // without giving a pullback pivot — arms Setup C (no-pullback continuation)
+        bool heldUpper = dir == 1 ? m15L >= array.get(lvP, 4) : m15H <= array.get(lvP, 4)
+        if enableAccel and heldUpper and gtD(close, array.get(lvP, 5)) and not accelArmed
+            accelArmed := true
+            label am = label.new(bar_index, dir == 1 ? high : low, "C armed",
+                 style = dir == 1 ? label.style_label_down : label.style_label_up,
+                 color = color.new(color.gray, 40), textcolor = color.yellow, size = size.tiny)
+            keepSig(am)
+            alert("ROLLING FIB — SETUP C ARMED (" + syminfo.ticker + "): 15m accepted the upper grid. Watching for a 5m close beyond the 100.", alert.freq_once_per_bar_close)
+
+// ── 5m ENTRY — Setup A: rotation continuation ──
+if inWin and barstate.isconfirmed and gState == "CONFIRMED" and entriesUsed < maxEntries and elapsedMin <= cutoffMin and not (onePerPivot and pivotUsed) and bar_index > confirmBar
+    float pv        = array.get(mdP, supIdx)
+    float retestBuf = retestFrac * gR
+    // trigger bar must RETEST the pivot (near edge), not just sit inside the band —
+    // kills mid-impulse chase entries far from the pivot (May-18 defect)
+    bool retested  = dir == 1 ? low <= pv + retestBuf : high >= pv - retestBuf
+    bool heldPivot = gtD(close, pv)
+    bool momOk     = dir == 1 ? close > open : close < open
+    if supIdx <= maxPivotIdx and retested and heldPivot and momOk
+        float sl = na
+        if stopMode == "Below pivot midline"
+            sl := pv - dir * stopBufTks * tickSz
+        else
+            sl := array.get(lvP, supIdx) - dir * stopBufTks * tickSz
+        float risk = (close - sl) * dir
+        float t1 = na
+        for i = 0 to 6
+            float lp = array.get(lvP, i)
+            if na(t1) and gtD(lp, close) and (lp - close) * dir >= risk * minRR and (lp - close) * dir <= risk * maxT1RR
+                t1 := lp
+        if risk > 0 and risk <= maxRiskFrac * gR and not na(t1)
+            float extMid = (array.get(lvP, 6) + array.get(lvP, 7)) / 2.0
+            float t2 = na
+            float t3 = na
+            if t1 == array.get(lvP, 6)
+                t2 := extMid
+                t3 := array.get(lvP, 7)
+            else
+                t2 := nextLevelAbove(t1)
+                t3 := t2 == array.get(lvP, 6) ? extMid : nextLevelAbove(t2)
+            float rr1 = (t1 - close) * dir / risk
+            entriesUsed += 1
+            pivotUsed := true
+            string sideTxt = dir == 1 ? "LONG" : "SHORT"
+            lastSignal := sideTxt + " @ " + str.tostring(close, format.mintick)
+            label sig = label.new(bar_index, dir == 1 ? low : high,
+                 (dir == 1 ? "▲ " : "▼ ") + sideTxt
+                 + "\nE " + str.tostring(close, format.mintick) + "  SL " + str.tostring(sl, format.mintick)
+                 + "\nT1 " + str.tostring(t1, format.mintick) + " · T2 " + str.tostring(t2, format.mintick)
+                 + " · T3 " + str.tostring(t3, format.mintick) + "  (" + str.tostring(rr1, "#.#") + "R)",
+                 style = dir == 1 ? label.style_label_up : label.style_label_down,
+                 color = color.new(dir == 1 ? bullCol : bearCol, 10), textcolor = color.white, size = size.small)
+            keepSig(sig)
+            alert("ROLLING FIB — ENTRY " + sideTxt + " (" + syminfo.ticker + ")  E:"
+                 + str.tostring(close, format.mintick) + "  SL:" + str.tostring(sl, format.mintick)
+                 + "  T1:" + str.tostring(t1, format.mintick) + "  T2:" + str.tostring(t2, format.mintick)
+                 + "  T3:" + str.tostring(t3, format.mintick) + "  RR1:" + str.tostring(rr1, "#.##"),
+                 alert.freq_once_per_bar_close)
+
+// ── 5m ENTRY — Setup C: acceptance continuation (no-pullback trend hours) ──
+// Captures the hours where price accepts the top of the grid and runs without ever
+// retracing to a pivot (the 0-entry trend hours seen in replay). One shot per grid.
+if inWin and barstate.isconfirmed and enableAccel and accelArmed and not accelUsed and gState != "DEAD" and entriesUsed < maxEntries and elapsedMin <= cutoffMin and array.size(lvP) == 8 and (supIdx < 0 or supIdx > maxPivotIdx)
+    bool momC = dir == 1 ? close > open : close < open
+    bool freshBreak = (close - array.get(lvP, 6)) * dir <= maxOvershoot * gR
+    if gtD(close, array.get(lvP, 6)) and momC and freshBreak
+        // break-retest stop: just beyond the 100 when that leaves >= 4 ticks of room
+        float slTight = array.get(lvP, 6) - dir * stopBufTks * tickSz
+        float slWide  = array.get(mdP, 5) - dir * stopBufTks * tickSz
+        float slC = (close - slTight) * dir >= 4 * tickSz ? slTight : slWide
+        float riskC = (close - slC) * dir
+        // target ladder: extension midline first; 161.8 fallback when the break overshot
+        float extMidL = (array.get(lvP, 6) + array.get(lvP, 7)) / 2.0
+        float t1C = na
+        float t2C = na
+        if (extMidL - close) * dir >= riskC * minRR
+            t1C := extMidL
+            t2C := array.get(lvP, 7)
+        else if (array.get(lvP, 7) - close) * dir >= riskC * minRR
+            t1C := array.get(lvP, 7)
+            t2C := array.get(lvP, 7)
+        if riskC >= 2 * tickSz and not na(t1C)
+            accelUsed := true
+            entriesUsed += 1
+            float rrC = (t1C - close) * dir / riskC
+            string sideC = dir == 1 ? "LONG" : "SHORT"
+            lastSignal := "ACCEL " + sideC + " @ " + str.tostring(close, format.mintick)
+            label ac = label.new(bar_index, dir == 1 ? low : high,
+                 "▲▲ ACCEL " + sideC + "\nE " + str.tostring(close, format.mintick)
+                 + "  SL " + str.tostring(slC, format.mintick)
+                 + "\nT1 " + str.tostring(t1C, format.mintick) + " · T2 " + str.tostring(t2C, format.mintick)
+                 + "  (" + str.tostring(rrC, "#.#") + "R)",
+                 style = dir == 1 ? label.style_label_up : label.style_label_down,
+                 color = color.new(dir == 1 ? bullCol : bearCol, 0), textcolor = color.white, size = size.small)
+            keepSig(ac)
+            alert("ROLLING FIB — ACCEPTANCE CONTINUATION " + sideC + " (" + syminfo.ticker
+                 + "): 15m accepted the upper grid, 5m closed beyond 100 — trend hour.  E:"
+                 + str.tostring(close, format.mintick) + "  SL:" + str.tostring(slC, format.mintick)
+                 + "  T1:" + str.tostring(t1C, format.mintick) + "  T2:" + str.tostring(t2C, format.mintick)
+                 + "  RR1:" + str.tostring(rrC, "#.##"), alert.freq_once_per_bar_close)
+
+// ── 5m ENTRY — Setup B: extension fade (counter-trend, once per grid) ──
+if inWin and barstate.isconfirmed and gState != "DEAD" and gState != "IDLE" and array.size(lvP) == 8
+    float extMidF = (array.get(lvP, 6) + array.get(lvP, 7)) / 2.0
+    float edge = dir == 1 ? high : low
+    if geD(edge, extMidF)
+        extTouched := true
+    if extTouched
+        extExtreme := na(extExtreme) ? edge : dir == 1 ? math.max(extExtreme, high) : math.min(extExtreme, low)
+    if enableFade and extTouched and not fadeFired and gtD(array.get(lvP, 6), close)
+        // v1.1 guards: beyond the 161.8 it is a trend, not exhaustion — no fade; and the
+        // ticket must clear a real RR (replay showed 0.04R fades when the extreme ran away)
+        bool  extOk = not fadeSkipExt or gtD(array.get(lvP, 7), extExtreme)
+        float fsl   = extExtreme + dir * stopBufTks * tickSz
+        float ft1   = array.get(lvP, 5)
+        float ft2   = array.get(lvP, 4)
+        float fRisk = (fsl - close) * dir
+        float fRew  = (close - ft1) * dir
+        if extOk and fRisk > 0 and fRew >= fRisk * fadeMinRR
+            fadeFired := true
+            float fRR = fRew / fRisk
+            string fside = dir == 1 ? "SHORT" : "LONG"
+            lastSignal := "FADE " + fside + " @ " + str.tostring(close, format.mintick)
+            label fl = label.new(bar_index, dir == 1 ? high : low,
+                 "◆ FADE " + fside + " (½ size)\nE " + str.tostring(close, format.mintick)
+                 + "  SL " + str.tostring(fsl, format.mintick)
+                 + "\nT1 " + str.tostring(ft1, format.mintick) + " · T2 " + str.tostring(ft2, format.mintick)
+                 + "  (" + str.tostring(fRR, "#.#") + "R)",
+                 style = dir == 1 ? label.style_label_down : label.style_label_up,
+                 color = color.new(color.orange, 10), textcolor = color.black, size = size.small)
+            keepSig(fl)
+            alert("ROLLING FIB — EXTENSION FADE " + fside + " (" + syminfo.ticker
+                 + "): rejected 1.309R extension midline, closed back inside 100.  E:"
+                 + str.tostring(close, format.mintick) + "  SL:" + str.tostring(fsl, format.mintick)
+                 + "  T1:" + str.tostring(ft1, format.mintick) + "  T2:" + str.tostring(ft2, format.mintick)
+                 + "  RR:" + str.tostring(fRR, "#.##") + "  Counter-trend — reduce size.",
+                 alert.freq_once_per_bar_close)
+
+// ── :45 CHECKPOINT — the observed changeover point; stop initiating, protect ──
+if inWin and barstate.isconfirmed and not ckpt45Done and elapsedMin >= 45
+    ckpt45Done := true
+    if gState == "CONFIRMED" or entriesUsed > 0 or fadeFired
+        alert("ROLLING FIB — 45m CHECKPOINT (" + syminfo.ticker
+             + "): changeover risk. No new entries; move stops to BE / trail. Grid rolls or expires at :00.",
+             alert.freq_once_per_bar_close)
+
+// window shading
+bgcolor(inWin and gState != "DEAD" ? color.new(dir == 1 ? bullCol : bearCol, 96) : na)
+
+// ════════════════════════════════════════════════════════════════
+//  ⑨ DASHBOARD
+// ════════════════════════════════════════════════════════════════
+var table dash = table.new(position.top_right, 2, 9, bgcolor = color.new(#0b0e14, 15),
+     border_width = 1, border_color = color.new(color.gray, 70))
+
+f_cell(int r, string k, string v, color vc) =>
+    table.cell(dash, 0, r, k, text_color = color.new(color.silver, 25), text_size = size.small, text_halign = text.align_left)
+    table.cell(dash, 1, r, v, text_color = vc, text_size = size.small, text_halign = text.align_right)
+
+if barstate.islast
+    color stCol = gState == "CONFIRMED" ? color.lime : gState == "ACTIVE" ? color.yellow : gState == "DEAD" ? color.red : color.gray
+    string gridTxt = na(gR) ? "—" : (dir == 1 ? "BULL " : "BEAR ") + str.tostring(gR, "#.##") + " pts @ " + str.tostring(qHod) + ":00"
+    string pivTxt  = supIdx >= 0 ? array.get(RNAME, supIdx) + "/" + array.get(RNAME, supIdx + 1) + " = " + str.tostring(array.get(mdP, supIdx), format.mintick) : "—"
+    int   hodNow   = hour(time, tzIn)
+    float expNow   = expRangeFor(hodNow)
+    string expTxt  = na(expNow) ? "warmup" : str.tostring(math.max(kRange * expNow, minAbsPts), "#.##") + " pts (" + str.tostring(hH - hL, "#.##") + " now)"
+    string winTxt  = inWin ? str.tostring(math.round(60 - elapsedMin)) + "m left" : "—"
+    f_cell(0, "ROLLING FIB", gState, stCol)
+    f_cell(1, "Chart TF", tfOk ? "5m ✓" : "✗ load on 5m", tfOk ? color.lime : color.red)
+    f_cell(2, "Grid", gridTxt, color.white)
+    f_cell(3, "Gate (this hr)", expTxt, color.silver)
+    f_cell(4, "Pivot", pivTxt, color.aqua)
+    f_cell(5, "Entries", str.tostring(entriesUsed) + " / " + str.tostring(maxEntries), color.white)
+    f_cell(6, "Window", winTxt, color.orange)
+    f_cell(7, "Block", blockReason, color.new(color.red, 20))
+    f_cell(8, "Last", lastSignal, color.yellow)

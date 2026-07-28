@@ -1,0 +1,2 @@
+NinjaScript File,Error,Code,Line,Column,
+RollingFibAccounts.cs,'Account' does not contain a definition for 'Trades' and no accessible extension method 'Trades' accepting a first argument of type 'Account' could be found (are you missing a using directive or an assembly reference?),CS1061,107,43,

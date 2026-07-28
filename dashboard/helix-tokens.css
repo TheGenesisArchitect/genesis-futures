@@ -1,0 +1,130 @@
+/* ============================================================
+   helix-tokens.css — Genesis Reserve Helix Design System
+   Single source of truth for all visual tokens.
+   Components consume TIER 2 (semantic) tokens only.
+   Whitelabel tenants override via :root[data-tenant="..."].
+   ============================================================ */
+
+/* ---------- TIER 1 — PRIMITIVE (never used in components) --- */
+:root {
+  --color-black:      #000000;
+  --color-ink-950:    #020305;   /* Genesis brand deep black */
+  --color-ink-900:    #0d1018;
+  --color-ink-800:    #141b22;
+  --color-ink-700:    #1a2230;
+  --color-gold-400:   #E8CB6E;
+  --color-gold-500:   #C9A84C;
+  --color-gold-700:   #8A6E2A;
+  --color-teal-400:   #00D4AA;
+  --color-blue-400:   #4A9EFF;
+  --color-red-500:    #e84040;
+  --color-green-400:  #1ABF6A;
+  --color-violet-400: #9B6DFF;
+  --color-coral-500:  #FF6B35;
+  --color-amber-400:  #F59E0B;
+  --color-cream:      #f5f0e8;
+
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body:    'Tenor Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+/* ---------- TIER 2 — SEMANTIC (what components consume) ----- */
+:root {
+  --color-bg-base:        var(--color-ink-950);
+  --color-bg-surface:     var(--color-ink-900);
+  --color-bg-elevated:    var(--color-ink-800);
+  --color-bg-overlay:     var(--color-ink-700);
+
+  --color-text-primary:   var(--color-cream);
+  --color-text-secondary: rgba(245, 240, 232, .92);
+  --color-text-muted:     rgba(245, 240, 232, .66);   /* lifted from .45 — readable on dark bg */
+  --color-text-disabled:  rgba(245, 240, 232, .42);   /* lifted from .22 */
+
+  --color-accent:         var(--color-gold-500); /* Genesis gold — primary accent */
+  --color-accent-dim:     rgba(201, 168, 76, .10);
+  --color-accent-border:  rgba(201, 168, 76, .22);
+  --color-intel:          var(--color-teal-400); /* Genesis teal — "intelligence" accent for data callouts */
+  --color-intel-dim:      rgba(0, 212, 170, .12);
+
+  --color-positive:       var(--color-green-400);
+  --color-negative:       var(--color-red-500);
+  --color-warning:        var(--color-amber-400);
+  --color-info:           var(--color-blue-400);
+
+  --color-border-subtle:  rgba(255, 255, 255, .07);
+  --color-border-default: rgba(255, 255, 255, .12);
+  --color-border-strong:  rgba(255, 255, 255, .22);
+
+  /* type scale */
+  --font-size-display: clamp(46px, 5vw, 60px);
+  --font-size-h1:      clamp(32px, 4vw, 38px);
+  --font-size-h2:      clamp(24px, 3vw, 28px);
+  --font-size-body:    15px;
+  --font-size-small:   13px;
+  --font-size-label:   11px;
+  --font-size-caption: 9px;
+  --line-height-body:  1.7;
+
+  /* spacing */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
+  --space-card-padding: 18px 20px;
+
+  /* radii + elevation */
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-pill: 999px;
+  --shadow-card:    0 1px 2px rgba(0,0,0,.4);
+  --shadow-drawer:  0 8px 40px rgba(0,0,0,.55);
+
+  /* motion */
+  --ease-decelerate: cubic-bezier(0, 0, .2, 1);
+  --ease-out-cubic:  cubic-bezier(.215, .61, .355, 1);
+  --dur-suite-switch: 220ms;
+  --dur-card-appear:  180ms;
+  --dur-chip-countup: 400ms;
+  --dur-palette-open: 150ms;
+  --dur-error-shake:  300ms;
+}
+
+/* ---------- TIER 3 — COMPONENT (auto-derived) --------------- */
+:root {
+  --btn-primary-bg:   var(--color-accent);
+  --btn-primary-text: var(--color-bg-base);
+  --card-bg:          var(--color-bg-surface);
+  --card-border:      var(--color-border-subtle);
+  --input-bg:         var(--color-bg-elevated);
+  --rail-bg:          var(--color-bg-surface);
+  --hud-bg:           rgba(6, 8, 13, .92);
+}
+
+/* ---------- DENSITY MODES ----------------------------------- */
+:root[data-density="compact"] {
+  --space-card-padding: 12px 14px;
+  --font-size-body: 13px;
+  --line-height-body: 1.55;
+}
+:root[data-density="comfortable"] { /* default */
+  --space-card-padding: 18px 20px;
+  --font-size-body: 15px;
+  --line-height-body: 1.7;
+}
+:root[data-density="spacious"] { /* presentation mode */
+  --space-card-padding: 28px 32px;
+  --font-size-body: 17px;
+  --line-height-body: 1.85;
+}
+
+/* ---------- WHITELABEL TENANT OVERRIDE (example) ------------ */
+/* One file per tenant; loaded after this file.
+:root[data-tenant="custom-brand"] {
+  --color-accent:  #FF5533;
+  --color-ink-950: #080810;
+  --font-display:  'Brand Font', serif;
+  --font-body:     'Brand Body', sans-serif;
+}
+*/
+
+/* ---------- REDUCED MOTION ----------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

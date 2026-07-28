@@ -1,0 +1,3 @@
+NinjaScript File,Error,Code,Line,Column,
+RollingFibRadar.cs,The name 'lastFadeEt' does not exist in the current context,CS0103,485,60,
+RollingFibRadar.cs,The name 'lastFadeEt' does not exist in the current context,CS0103,496,61,

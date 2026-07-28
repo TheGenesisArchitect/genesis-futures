@@ -1,0 +1,2206 @@
+<!doctype html>
+<html lang="en" data-density="comfortable"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Genesis Futures — Trading Intelligence OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Tenor+Sans&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/helix-tokens.css">
+<style>
+/* Helix Suite surface — consumes Tier 2/3 tokens only. No raw colors below. */
+*{margin:0;padding:0;box-sizing:border-box;}
+[hidden]{display:none!important;}   /* the hidden attribute must always win over display rules (modals/tooltips) */
+/* custom scrollbars — thin, Genesis-toned, so they never look like default browser chrome */
+*{scrollbar-width:thin;scrollbar-color:var(--color-gold-700) transparent;}
+::-webkit-scrollbar{width:7px;height:7px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--color-border-strong);border-radius:8px;border:2px solid transparent;background-clip:content-box;}
+::-webkit-scrollbar-thumb:hover{background:var(--color-gold-700);background-clip:content-box;}
+::-webkit-scrollbar-corner{background:transparent;}
+html,body{background:var(--color-bg-base);color:var(--color-text-primary);font-family:var(--font-body);font-size:var(--font-size-body);line-height:var(--line-height-body);}
+/* ── GROUND LAYER HUD ─────────────────────────────── */
+.hud{position:sticky;top:0;z-index:50;height:48px;background:var(--hud-bg);backdrop-filter:blur(8px);border-bottom:1px solid var(--color-border-subtle);display:flex;align-items:center;gap:var(--space-2);padding:0 var(--space-4);overflow-x:auto;}
+.hud-brand{font-family:var(--font-mono);font-size:var(--font-size-label);font-weight:600;letter-spacing:.18em;color:var(--color-accent);white-space:nowrap;margin-right:var(--space-3);}
+.chip{display:flex;align-items:center;gap:var(--space-2);padding:5px 12px;border:1px solid var(--color-border-subtle);border-radius:var(--radius-pill);background:var(--color-bg-surface);white-space:nowrap;cursor:default;transition:border-color var(--dur-palette-open) var(--ease-out-cubic);}
+.chip .lbl{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);}
+.chip .val{font-family:var(--font-mono);font-size:var(--font-size-label);color:var(--color-text-secondary);font-variant-numeric:tabular-nums;}
+.chip.alert{border-color:var(--color-warning);box-shadow:0 0 12px var(--color-accent-dim);}
+.chip.alert .dot{width:6px;height:6px;border-radius:50%;background:var(--color-warning);animation:pulse 1.6s var(--ease-out-cubic) infinite;}
+.chip.inactive .val{color:var(--color-text-disabled);}
+.chip.loading .val{color:transparent;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--color-bg-elevated) 25%,var(--color-bg-overlay) 50%,var(--color-bg-elevated) 75%);background-size:200% 100%;animation:shimmer 1.4s linear infinite;min-width:42px;}
+@keyframes pulse{0%{opacity:1;transform:scale(1);}70%{opacity:.3;transform:scale(1.7);}100%{opacity:1;transform:scale(1);}}
+@keyframes shimmer{to{background-position:-200% 0;}}
+.hud .spacer{flex:1;}
+.density{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.1em;color:var(--color-text-muted);background:none;border:1px solid var(--color-border-subtle);border-radius:var(--radius-pill);padding:4px 10px;cursor:pointer;}
+.density:hover{border-color:var(--color-border-default);color:var(--color-text-secondary);}
+/* ── SHELL ────────────────────────────────────────── */
+.shell{display:flex;min-height:calc(100vh - 48px);}
+.rail{width:72px;flex:none;background:var(--rail-bg);border-right:1px solid var(--color-border-subtle);display:flex;flex-direction:column;align-items:center;padding-top:var(--space-5);gap:var(--space-5);}
+.rail a{display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:var(--color-text-muted);font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.12em;padding:var(--space-2);border-left:2px solid transparent;width:100%;}
+.rail a.active{color:var(--color-accent);border-left-color:var(--color-accent);}
+.rail a:hover{color:var(--color-text-secondary);}
+.rail .glyph{font-size:16px;font-family:var(--font-display);}
+main{flex:1;min-width:0;padding:var(--space-6) var(--space-6) var(--space-8);}
+.suite-head{margin-bottom:var(--space-5);text-align:center;padding:var(--space-4) 0 var(--space-2);}
+.eyebrow{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.22em;text-transform:uppercase;color:var(--color-accent);}
+.suite-head .eyebrow{display:inline-block;padding:2px 12px;border:1px solid var(--color-gold-700);border-radius:var(--radius-pill);letter-spacing:.28em;color:var(--color-gold-400);}
+h1{font-family:var(--font-display);font-size:var(--font-size-h1);font-weight:300;color:var(--color-text-primary);}
+.suite-head h1{font-size:calc(var(--font-size-h1) * 1.35);letter-spacing:.02em;margin:var(--space-2) 0 2px;
+  background:linear-gradient(180deg,var(--color-gold-400),var(--color-gold-500));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.suite-head .sub{font-family:var(--font-mono);font-size:var(--font-size-label);letter-spacing:.32em;text-transform:uppercase;color:var(--color-text-secondary);}
+.suite-head .tagline{font-size:var(--font-size-small);color:var(--color-text-muted);margin-top:var(--space-2);letter-spacing:.02em;}
+.sub{font-size:var(--font-size-small);color:var(--color-text-muted);}
+/* ── CARDS ────────────────────────────────────────── */
+.grid{display:flex;gap:var(--space-4);flex-wrap:wrap;align-items:flex-start;}
+.deck{display:flex;gap:var(--space-4);align-items:flex-start;flex-wrap:wrap;}
+.cardcol{flex:1 1 340px;display:flex;flex-wrap:wrap;gap:var(--space-4);align-content:flex-start;min-width:340px;}
+.hcard{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);box-shadow:var(--shadow-card);padding:var(--space-card-padding);width:340px;}
+@keyframes cardin{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.hcard.wide{flex:4 1 640px;min-width:520px;width:auto;padding:0;overflow:hidden;}   /* TERMINAL is the star */
+.hcard.hero{flex:1 1 300px;min-width:300px;max-width:360px;}                          /* radar = compact companion */
+.tvchart{height:480px;min-height:280px;max-height:80vh;resize:vertical;overflow:hidden;}
+.mchartwrap{position:relative;height:520px;min-height:260px;max-height:88vh;resize:both;overflow:hidden;width:100%;min-width:340px;}
+.charttools{position:absolute;top:8px;left:10px;z-index:4;display:flex;gap:4px;background:rgba(2,3,5,.62);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:3px;backdrop-filter:blur(3px);}
+.ctool{width:26px;height:24px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:var(--radius-sm);color:var(--color-text-muted);cursor:pointer;font-size:13px;line-height:1;transition:all .12s;}
+.ctool:hover{color:var(--color-text-secondary);border-color:var(--color-border-default);}
+.ctool.on{color:var(--color-accent);border-color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
+/* LIVE BUY/SELL signal toast */
+#sigtoast{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-16px);z-index:300;display:flex;align-items:center;gap:14px;
+  padding:12px 20px;border-radius:var(--radius-md);background:var(--color-bg-surface);border:1px solid var(--color-border-default);
+  box-shadow:0 12px 48px rgba(0,0,0,.6);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;font-family:var(--font-mono);cursor:pointer;max-width:min(560px,92vw);}
+#sigtoast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto;}
+#sigtoast.buy{border-left:4px solid var(--color-positive);}
+#sigtoast.sell{border-left:4px solid var(--color-negative);}
+#sigtoast.aplus{box-shadow:0 12px 48px rgba(0,0,0,.6),0 0 0 1px var(--color-accent);}
+#sigtoast .sig-dir{font-size:1.1rem;font-weight:700;letter-spacing:.06em;white-space:nowrap;}
+#sigtoast.buy .sig-dir{color:var(--color-positive);}#sigtoast.sell .sig-dir{color:var(--color-negative);}
+#sigtoast .sig-body{font-size:var(--font-size-caption);color:var(--color-text-secondary);line-height:1.4;}
+#sigtoast .sig-body b{color:var(--color-text-primary);}
+#sigtoast .sig-x{color:var(--color-text-muted);font-size:12px;margin-left:2px;}
+/* Aries voice picker */
+.voicepanel{margin:0 var(--space-3) var(--space-3);background:var(--card-bg);border:1px solid var(--color-accent-border);border-radius:var(--radius-sm);padding:6px;max-height:320px;overflow-y:auto;}
+.vp-head{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--color-text-muted);padding:4px 8px 6px;}
+.vp-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:var(--radius-sm);padding:6px 8px;cursor:pointer;transition:all .12s;}
+.vp-row:hover{background:color-mix(in srgb,var(--color-accent) 8%,transparent);border-color:var(--color-border-default);}
+.vp-row.on{border-color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
+.vp-name{font-family:var(--font-mono);font-size:.72rem;color:var(--color-text-primary);min-width:92px;}
+.vp-row.on .vp-name{color:var(--color-accent);}
+.vp-desc{font-size:.62rem;color:var(--color-text-muted);flex:1;}
+.vp-play{color:var(--color-accent);font-size:.7rem;opacity:.5;}
+.vp-row:hover .vp-play,.vp-row.on .vp-play{opacity:1;}
+.gridctl{position:absolute;top:8px;right:12px;z-index:4;display:flex;align-items:center;gap:8px;background:rgba(2,3,5,.62);
+  border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:4px 10px;backdrop-filter:blur(3px);}
+.gridctl .gdicon{color:var(--color-accent);font-size:.72rem;}
+.gridctl .gdval{font-family:var(--font-mono);font-size:.58rem;color:var(--color-text-muted);width:30px;text-align:right;}
+.gridctl input[type=range]{width:82px;height:3px;accent-color:var(--color-accent);cursor:pointer;}
+.gridctl:hover{border-color:var(--color-border-default);}
+.edgebtn.dupe{opacity:.4;}
+.mchartwrap canvas{display:block;width:100%;height:100%;cursor:crosshair;}
+/* visible resize grip (bottom-right), styled like NinjaTrader's chart corner */
+.mchartwrap::after{content:"";position:absolute;right:2px;bottom:2px;width:12px;height:12px;pointer-events:none;
+  background:linear-gradient(135deg,transparent 45%,var(--color-gold-700) 45%,var(--color-gold-700) 55%,transparent 55%,transparent 70%,var(--color-gold-700) 70%,var(--color-gold-700) 80%,transparent 80%);opacity:.7;}
+.termmeta{margin-left:auto;text-transform:none;letter-spacing:0;color:var(--color-text-secondary);font-weight:600;}
+.thead{display:flex;align-items:center;gap:var(--space-2);}
+.hcard.stale{opacity:.45;}
+.chead{display:flex;align-items:baseline;gap:var(--space-3);margin-bottom:var(--space-3);}
+.inst{font-family:var(--font-display);font-size:var(--font-size-h2);font-weight:400;}
+.px{font-family:var(--font-mono);font-size:var(--font-size-body);color:var(--color-text-primary);font-variant-numeric:tabular-nums;}
+.badge{margin-left:auto;font-family:var(--font-mono);font-size:var(--font-size-caption);font-weight:600;letter-spacing:.12em;padding:3px 10px;border-radius:var(--radius-pill);border:1px solid var(--color-border-default);color:var(--color-text-muted);}
+.badge.pos{color:var(--color-positive);border-color:var(--color-positive);background:var(--color-accent-dim);}
+.badge.neg{color:var(--color-negative);border-color:var(--color-negative);}
+.badge.warn{color:var(--color-warning);border-color:var(--color-warning);}
+.badge.info{color:var(--color-info);border-color:var(--color-info);}
+.thead{padding:var(--space-3) var(--space-4);font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.18em;text-transform:uppercase;color:var(--color-text-muted);border-bottom:1px solid var(--color-border-subtle);}
+/* ladder */
+.ladder{position:relative;height:300px;border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);background:var(--color-bg-base);margin-bottom:var(--space-3);overflow:hidden;}
+/* fib ladder — ratio on the LEFT, price on the RIGHT, so labels never collide */
+.lv{position:absolute;left:0;right:0;height:0;border-top:1px solid var(--color-border-default);opacity:.45;z-index:1;}
+.lv.major{border-top-width:1.5px;border-top-color:var(--color-text-secondary);opacity:.85;}
+.lv.ext{border-top-color:var(--color-violet-400);opacity:.9;}
+.lv.mid{border-top-style:dashed;border-top-color:var(--color-border-subtle);opacity:.35;}
+.lv.mid.pivot{border-top-style:solid;border-top-color:var(--color-accent);border-top-width:1.5px;opacity:1;}
+.lv .rtag{position:absolute;left:6px;top:-7px;font-family:var(--font-mono);font-size:9px;letter-spacing:.04em;color:var(--color-text-disabled);}
+.lv.major .rtag,.lv.ext .rtag{color:var(--color-text-muted);}
+.lv .tag{position:absolute;right:6px;top:-8px;font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);background:var(--color-bg-base);padding:0 3px;}
+.lv.major .tag,.lv.ext .tag{color:var(--color-text-secondary);font-weight:600;}
+.pivtag{position:absolute;left:6px;top:-8px;font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.06em;color:var(--color-bg-base);background:var(--color-accent);padding:1px 6px;border-radius:var(--radius-pill);white-space:nowrap;z-index:3;}
+.tzone{position:absolute;left:0;right:0;z-index:0;opacity:.08;pointer-events:none;}
+.tzone.bear{background:var(--color-negative);} .tzone.bull{background:var(--color-positive);}
+.cursor{position:absolute;left:0;right:0;height:0;border-top:1.5px dashed var(--color-accent);z-index:4;}
+.cursor.bear{border-top-color:var(--color-negative);} .cursor.bull{border-top-color:var(--color-positive);}
+.cursor .tag{position:absolute;right:6px;top:-9px;font-family:var(--font-mono);font-size:var(--font-size-label);font-weight:700;color:var(--color-bg-base);background:var(--color-accent);padding:1px 7px;border-radius:var(--radius-pill);}
+.cursor.bear .tag{background:var(--color-negative);} .cursor.bull .tag{background:var(--color-positive);}
+/* your live position ENTRY marked on the ladder */
+.entryline{position:absolute;left:0;right:0;height:0;border-top:1.5px dotted var(--color-warning);z-index:5;}
+.entag{position:absolute;left:6px;top:-8px;font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.05em;color:var(--color-bg-base);background:var(--color-warning);padding:1px 6px;border-radius:var(--radius-pill);}
+/* projected 1R stop/target envelope — faint, so it frames the trade without shouting */
+.envline{position:absolute;left:0;right:0;height:0;z-index:2;opacity:.5;}
+.envline.stop{border-top:1px dashed var(--color-negative);} .envline.tgt{border-top:1px dashed var(--color-positive);}
+.envtag{position:absolute;right:6px;top:-7px;font-family:var(--font-mono);font-size:8px;letter-spacing:.05em;padding:0 4px;background:var(--color-bg-base);}
+.envtag.stop{color:var(--color-negative);} .envtag.tgt{color:var(--color-positive);}
+.noladder{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--color-text-muted);text-align:center;padding:0 var(--space-5);}
+/* last-window grid held on screen between windows — dimmed so it reads as "closed, for reference" */
+.laddergrid{position:absolute;inset:0;}
+.laddergrid.stale{opacity:.42;filter:saturate(.7);}   /* cursor sits outside this group so it stays bright */
+.gridtag{position:absolute;top:2px;right:4px;z-index:4;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.04em;text-transform:uppercase;color:var(--color-text-disabled);background:var(--color-bg-base);padding:1px 5px;border-radius:3px;}
+/* radar hero + arming state */
+.hcard.hero{flex:1 1 360px;min-width:340px;}
+.hcard.arming{border-color:var(--color-warning);box-shadow:0 0 0 1px var(--color-warning),0 0 24px rgba(245,158,11,.18);}
+.measure{width:82%;display:flex;flex-direction:column;align-items:center;gap:var(--space-2);}
+.mlabel{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.14em;text-transform:uppercase;color:var(--color-text-muted);}
+.mlabel.arm{color:var(--color-warning);animation:armpulse 1.6s var(--ease-out-cubic) infinite;}
+@keyframes armpulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+.mbig{font-family:var(--font-mono);font-size:38px;font-variant-numeric:tabular-nums;color:var(--color-text-primary);line-height:1;}
+.mbig.arm{color:var(--color-warning);}
+.munit{font-size:14px;color:var(--color-text-muted);}
+.mbar{width:100%;height:8px;background:var(--color-bg-elevated);border-radius:var(--radius-pill);overflow:hidden;}
+.mfill{height:100%;background:var(--color-info);border-radius:var(--radius-pill);transition:width var(--dur-chip-countup) var(--ease-out-cubic);}
+.mfill.arm{background:var(--color-warning);}
+.winbar{position:relative;height:14px;background:var(--color-bg-elevated);border-radius:var(--radius-sm);margin-bottom:var(--space-3);overflow:hidden;}
+.winfill{position:absolute;inset:0 auto 0 0;background:var(--color-positive);opacity:.75;}
+.wintick{position:absolute;top:0;bottom:0;width:1px;background:var(--color-warning);}
+.winlabel{position:absolute;right:6px;top:0;font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-primary);line-height:14px;}
+.chips{display:flex;flex-wrap:wrap;gap:var(--space-2);}
+/* collapsible drawer (backtests tucked away so they don't eat space) */
+.drawer{border:1px solid var(--color-border-subtle);border-radius:var(--radius-md);background:var(--color-bg-surface);margin-top:var(--space-5);overflow:hidden;}
+.drawerhead{list-style:none;cursor:pointer;display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);user-select:none;}
+.drawerhead::-webkit-details-marker{display:none;}
+.drawerhead .eyebrow{margin:0;}
+.drawercount{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);}
+.drawerhead .chev{margin-left:auto;transition:transform .2s;color:var(--color-text-muted);font-size:12px;}
+.drawer[open] .chev{transform:rotate(180deg);}
+.drawer[open] .drawerhead{border-bottom:1px solid var(--color-border-subtle);}
+.drawerbody{padding:var(--space-4);}
+.mchip{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.06em;padding:3px 9px;border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);color:var(--color-text-muted);}
+.mchip b{color:var(--color-text-secondary);font-weight:600;}
+.mchip.pos{border-color:var(--color-positive);color:var(--color-positive);}
+.mchip.neg{border-color:var(--color-negative);color:var(--color-negative);}
+.mchip.warn{border-color:var(--color-warning);color:var(--color-warning);}
+/* structure / persistence layer */
+.mchip.roll{border-color:var(--color-intel);color:var(--color-intel);background:color-mix(in srgb,var(--color-intel) 10%,transparent);}
+.mchip.rev{border-color:var(--color-accent);color:var(--color-accent);}
+.mchip.cont{border-color:var(--color-intel);color:var(--color-intel);}
+.mchip.choch{border-color:#e08a3c;color:#e08a3c;}
+.mchip.bos{border-color:#4aa3df;color:#4aa3df;}
+.mchip.fade{border-color:var(--color-accent);color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 12%,transparent);animation:fadepulse 1.6s ease-in-out infinite;}
+@keyframes fadepulse{0%,100%{opacity:.6}50%{opacity:1}}
+.rtchip{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.08em;padding:1px 7px;border-radius:var(--radius-sm);border:1px solid currentColor;}
+.rtchip.rev{color:var(--color-accent);}.rtchip.cont{color:var(--color-intel);}
+.fadeitem{font-family:var(--font-mono);font-size:var(--font-size-caption);padding:5px 10px;margin:4px 0;border-left:2px solid var(--color-border-default);border-radius:var(--radius-sm);background:var(--color-bg-raised);color:var(--color-text-secondary);}
+.fadeitem.long{border-left-color:var(--color-positive);}
+.fadeitem.short{border-left-color:var(--color-negative);}
+.fadeitem.choch{border-left-color:#e08a3c;}
+.fadeitem.bos{border-left-color:#4aa3df;}
+.fadeitem .fadet{color:var(--color-text-muted);float:right;}
+.meta{margin-top:var(--space-3);font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);line-height:1.6;}
+/* ── DESK FEED RAIL ───────────────────────────────── */
+.feedrail{width:360px;flex:none;background:var(--rail-bg);border-left:1px solid var(--color-border-subtle);display:flex;flex-direction:column;max-height:calc(100vh - 48px);position:sticky;top:48px;overflow-y:auto;transition:width .22s ease,opacity .22s ease;}
+#railCollapse{margin-right:2px;}
+/* horizontally collapsible right rail */
+body.railcollapsed .feedrail{width:0;min-width:0;opacity:0;overflow:hidden;border-left:0;pointer-events:none;}
+#railExpand{display:none;position:fixed;top:64px;right:0;z-index:40;background:var(--color-bg-elevated);color:var(--color-gold-400);border:1px solid var(--color-gold-700);border-right:0;border-radius:var(--radius-pill) 0 0 var(--radius-pill);font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.14em;padding:6px 10px;cursor:pointer;}
+body.railcollapsed #railExpand{display:block;}
+.feedrail header{padding:var(--space-4);border-bottom:1px solid var(--color-border-subtle);display:flex;align-items:center;gap:var(--space-2);position:sticky;top:0;background:var(--rail-bg);z-index:2;}
+.feedrail header .who{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.2em;text-transform:uppercase;color:var(--color-accent);font-weight:600;}
+.voicebtn{background:none;border:1px solid var(--color-border-default);border-radius:var(--radius-pill);cursor:pointer;font-size:12px;padding:2px 7px;line-height:1;transition:box-shadow .2s,border-color .2s;}
+.voicebtn.on{border-color:var(--color-accent);box-shadow:0 0 8px var(--color-accent-dim);}
+.voicebtn.listening{border-color:var(--color-negative);box-shadow:0 0 0 0 var(--color-negative);animation:micpulse 1.3s ease-out infinite;}
+@keyframes micpulse{0%{box-shadow:0 0 0 0 rgba(229,72,77,.55);}70%{box-shadow:0 0 0 7px rgba(229,72,77,0);}100%{box-shadow:0 0 0 0 rgba(229,72,77,0);}}
+.voicebtn.live{border-color:var(--color-positive);animation:livepulse 1.8s ease-out infinite;}
+@keyframes livepulse{0%{box-shadow:0 0 0 0 rgba(48,209,88,.5);}70%{box-shadow:0 0 0 8px rgba(48,209,88,0);}100%{box-shadow:0 0 0 0 rgba(48,209,88,0);}}
+.msg.watch{border-left:2px solid var(--color-positive);padding-left:var(--space-2);}
+.msg.watch.act{border-left-color:var(--color-negative);}
+/* trigger-vision context label (the "📸 QUALIFIED · …" line that precedes her read) */
+.msg.trig{align-self:center;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.03em;color:var(--color-accent);background:var(--color-accent-dim);border-radius:var(--radius-pill);padding:2px 10px;margin:var(--space-2) 0;}
+.regimechip{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:var(--radius-pill);border:1px solid var(--color-border-default);color:var(--color-text-muted);margin-left:auto;}
+.regimechip.trending,.regimechip.bear{color:var(--color-warning);border-color:var(--color-warning);}
+.regimechip.rotational{color:var(--color-info);border-color:var(--color-info);}
+.regimechip.bull{color:var(--color-positive);border-color:var(--color-positive);}
+.railsec{display:flex;align-items:center;gap:var(--space-2);padding:var(--space-3) var(--space-4) var(--space-2);font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.16em;text-transform:uppercase;color:var(--color-text-disabled);border-top:1px solid var(--color-border-subtle);}
+.railsecR{margin-left:auto;letter-spacing:0;}
+/* coaching cards — the co-pilot voice */
+.coaching{padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
+.coach{border-radius:var(--radius-sm);padding:var(--space-3);font-size:var(--font-size-small);line-height:1.5;border-left:3px solid var(--color-info);background:var(--color-bg-elevated);}
+.coach.act{border-left-color:var(--color-positive);background:rgba(26,191,106,.06);}
+.coach.caution{border-left-color:var(--color-negative);background:rgba(232,64,64,.06);}
+.coach.watch{border-left-color:var(--color-info);}
+.coach .cl{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.1em;text-transform:uppercase;display:block;margin-bottom:3px;}
+.coach.act .cl{color:var(--color-positive);}.coach.caution .cl{color:var(--color-negative);}.coach.watch .cl{color:var(--color-info);}
+/* ask aries — the Gemini 2.5 brain */
+.chat{padding:var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);max-height:280px;overflow-y:auto;}
+.msg{border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3);font-size:var(--font-size-small);line-height:1.5;border-left:3px solid var(--color-border-strong);background:var(--color-bg-elevated);}
+.msg.me{color:var(--color-text-secondary);}
+.msg.ai{border-left-color:var(--color-accent);background:rgba(26,191,106,.05);}
+.msg.ai .who2{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent);display:block;margin-bottom:2px;}
+.msg.err{border-left-color:var(--color-negative);background:rgba(232,64,64,.06);}
+.msg.thinking{font-style:italic;color:var(--color-text-muted);}
+.askrow{display:flex;gap:var(--space-2);padding:var(--space-2) var(--space-4) var(--space-3);}
+.askrow input{flex:1;min-width:0;background:var(--color-bg-elevated);border:1px solid var(--color-border-subtle);border-radius:var(--radius-pill);padding:7px 14px;color:var(--color-text-primary);font-family:var(--font-body);font-size:var(--font-size-small);outline:none;}
+.askrow input:focus{border-color:var(--color-accent);}
+.askrow button{background:none;border:1px solid var(--color-border-default);border-radius:var(--radius-pill);color:var(--color-accent);cursor:pointer;padding:0 14px;font-size:14px;}
+.askrow button:hover{border-color:var(--color-accent);}
+.askrow button:disabled{opacity:.4;cursor:default;}
+#brainDot{color:var(--color-negative);font-size:9px;} #brainDot.on{color:var(--color-positive);}
+/* window scorecards */
+.windows{padding:var(--space-2) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);}
+.wcard{display:flex;gap:var(--space-3);align-items:flex-start;background:var(--color-bg-elevated);border-radius:var(--radius-sm);padding:var(--space-2) var(--space-3);}
+.wgrade{font-family:var(--font-display);font-size:26px;line-height:1;width:34px;text-align:center;flex:none;}
+.wgrade.A{color:var(--color-positive);}.wgrade.B{color:#8FD694;}.wgrade.C{color:var(--color-warning);}.wgrade.D{color:var(--color-coral-500);}.wgrade.F{color:var(--color-negative);}
+.wbody{flex:1;min-width:0;}
+.wbody .wt{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-secondary);}
+.wbody .wd{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-top:2px;line-height:1.4;}
+.feed{padding:var(--space-3) var(--space-4) var(--space-6);}
+.conndot{width:7px;height:7px;border-radius:50%;background:var(--color-positive);margin-left:auto;}
+.conndot.off{background:var(--color-negative);}
+#feed{flex:1;overflow-y:auto;padding:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2);}
+.al{border-left:2px solid var(--color-warning);background:var(--color-bg-elevated);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:var(--space-2) var(--space-3);}
+.al .at{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.06em;color:var(--color-warning);}
+.al .am{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-top:2px;line-height:1.5;}
+.al.ENTRY,.al.T1{border-left-color:var(--color-positive);}.al.ENTRY .at,.al.T1 .at{color:var(--color-positive);}
+.al.INVALIDATED,.al.HALT{border-left-color:var(--color-negative);}.al.INVALIDATED .at,.al.HALT .at{color:var(--color-negative);}
+.al.BLOCK{border-left-color:var(--color-border-strong);}.al.BLOCK .at{color:var(--color-text-muted);}
+.empty{color:var(--color-text-disabled);font-size:var(--font-size-small);font-style:italic;padding:var(--space-6);text-align:center;}
+/* section bars */
+.secbar{display:flex;align-items:baseline;gap:var(--space-3);margin:var(--space-6) 0 var(--space-3);border-bottom:1px solid var(--color-border-subtle);padding-bottom:var(--space-2);}
+.secright{margin-left:auto;}
+/* performance — compact account strip */
+#accts{margin-top:var(--space-2);}
+.acctstrip{display:flex;gap:var(--space-3);flex-wrap:wrap;}
+/* ── WINDOW SCORE CARDS — the day, hour by hour: a horizontal queue of prep sheets ── */
+.scrow{display:flex;gap:var(--space-3);overflow-x:auto;padding-bottom:var(--space-3);scroll-snap-type:x proximity;}
+.scrow .empty{min-width:100%;}
+.scard{scroll-snap-align:start;flex:0 0 288px;min-width:288px;background:var(--card-bg);border:1px solid var(--card-border);border-top:2px solid var(--color-border-strong);border-radius:var(--radius-md);padding:var(--space-3) var(--space-4);display:flex;flex-direction:column;gap:var(--space-2);transition:border-color .2s;}
+.scard.bear{border-top-color:var(--color-negative);} .scard.bull{border-top-color:var(--color-positive);}
+.scard:hover{border-color:var(--color-accent-border);}
+.schead{display:flex;align-items:center;gap:var(--space-3);}
+.scgrade{font-family:var(--font-display);font-size:38px;line-height:.9;width:44px;text-align:center;flex:none;}
+.scgrade.A{color:var(--color-positive);}.scgrade.B{color:#8FD694;}.scgrade.C{color:var(--color-warning);}.scgrade.D{color:var(--color-coral-500);}.scgrade.F{color:var(--color-negative);}
+.scmeta{display:flex;flex-direction:column;gap:2px;}
+.sctime{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.08em;text-transform:uppercase;color:var(--color-text-muted);}
+.scdir{font-family:var(--font-mono);font-size:var(--font-size-body);font-weight:600;letter-spacing:.04em;color:var(--color-text-secondary);}
+.scdir.bear{color:var(--color-negative);} .scdir.bull{color:var(--color-positive);}
+.scstruct{font-size:var(--font-size-small);color:var(--color-text-secondary);line-height:1.5;min-height:2.6em;}
+.scverdict{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.05em;padding:2px 9px;border-radius:var(--radius-pill);border:1px solid transparent;align-self:flex-start;white-space:nowrap;}
+.scverdict.pos{color:var(--color-positive);border-color:color-mix(in srgb,var(--color-positive) 40%,transparent);background:color-mix(in srgb,var(--color-positive) 12%,transparent);}
+.scverdict.neg{color:var(--color-coral-500);border-color:color-mix(in srgb,var(--color-coral-500) 40%,transparent);background:color-mix(in srgb,var(--color-coral-500) 12%,transparent);}
+.scverdict.neutral{color:var(--color-text-muted);border-color:var(--color-border-subtle);}
+.scprep{font-size:var(--font-size-small);color:var(--color-text-muted);line-height:1.45;border-top:1px dashed var(--color-border-subtle);padding-top:var(--space-2);margin-top:auto;}
+.scpreplbl{display:block;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.12em;text-transform:uppercase;color:var(--color-intel);margin-bottom:2px;}
+#scavg{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.08em;color:var(--color-text-muted);}
+.scnav{display:flex;align-items:center;gap:var(--space-2);font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);}
+.scnav button{background:none;border:1px solid var(--color-border-default);color:var(--color-text-muted);border-radius:var(--radius-sm);cursor:pointer;width:22px;height:20px;line-height:1;}
+.scnav button:hover{border-color:var(--color-accent);color:var(--color-accent);}
+#scDateLbl{min-width:82px;text-align:center;letter-spacing:.06em;}
+.scpnl{font-weight:600;} .scpnl.pos{color:var(--color-positive);} .scpnl.neg{color:var(--color-negative);}
+.scard{cursor:pointer;} .scard:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4);}
+/* ── WINDOW SPOTLIGHT MODAL — the card grows to center, dashboard dims + blurs behind ── */
+.scback{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:var(--space-6);
+  background:rgba(2,3,5,.72);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);animation:scfade .18s ease;}
+@keyframes scfade{from{opacity:0;}to{opacity:1;}}
+.scmodal{width:min(860px,95vw);max-height:90vh;overflow-y:auto;background:var(--color-bg-surface);
+  border:1px solid var(--color-accent-border);border-top:3px solid var(--color-accent);border-radius:var(--radius-lg);
+  box-shadow:0 24px 80px rgba(0,0,0,.6),0 0 0 1px rgba(201,168,76,.08);padding:var(--space-8);animation:scpop .24s cubic-bezier(.2,.8,.2,1);}
+.scmodal.bear{border-top-color:var(--color-negative);} .scmodal.bull{border-top-color:var(--color-positive);}
+@keyframes scpop{from{opacity:0;transform:scale(.92) translateY(8px);}to{opacity:1;transform:none;}}
+.scm-head{display:flex;align-items:center;gap:var(--space-5);margin-bottom:var(--space-5);}
+.scm-grade{font-family:var(--font-display);font-size:84px;line-height:.82;flex:none;}
+.scm-grade.A{color:var(--color-positive);}.scm-grade.B{color:#8FD694;}.scm-grade.C{color:var(--color-warning);}.scm-grade.D{color:var(--color-coral-500);}.scm-grade.F{color:var(--color-negative);}
+.scm-h1{font-family:var(--font-display);font-size:34px;color:var(--color-text-primary);line-height:1.1;}
+.scm-sub{font-family:var(--font-mono);font-size:var(--font-size-small);letter-spacing:.1em;color:var(--color-text-secondary);text-transform:uppercase;margin-top:4px;}
+.scm-close{margin-left:auto;background:none;border:1px solid var(--color-border-default);color:var(--color-text-muted);border-radius:var(--radius-pill);width:34px;height:34px;cursor:pointer;font-size:16px;flex:none;}
+.scm-close:hover{border-color:var(--color-accent);color:var(--color-accent);}
+.scm-sec{margin-top:var(--space-5);}
+.scm-lbl{font-family:var(--font-mono);font-size:var(--font-size-label);letter-spacing:.18em;text-transform:uppercase;color:var(--color-intel);margin-bottom:var(--space-3);}
+.scm-body{font-size:var(--font-size-body);color:var(--color-text-secondary);line-height:1.7;}
+.scm-levels{display:flex;flex-wrap:wrap;gap:var(--space-2);}
+.scm-lv{font-family:var(--font-mono);font-size:var(--font-size-small);color:var(--color-text-secondary);border:1px solid var(--color-border-default);border-radius:var(--radius-sm);padding:5px 11px;font-variant-numeric:tabular-nums;}
+.scm-lv.piv{color:var(--color-accent);border-color:var(--color-accent-border);background:var(--color-accent-dim);font-weight:600;}
+.scm-trade{display:flex;align-items:center;gap:var(--space-3);font-family:var(--font-mono);font-size:var(--font-size-body);padding:var(--space-3) 0;border-bottom:1px solid var(--color-border-subtle);}
+.scm-trade .tside{font-weight:700;letter-spacing:.05em;width:46px;flex:none;} .scm-trade .tside.LONG{color:var(--color-positive);} .scm-trade .tside.SHORT{color:var(--color-negative);}
+.scm-trade .ttime{color:var(--color-text-secondary);font-variant-numeric:tabular-nums;}
+.scm-trade .tacct{color:var(--color-text-muted);font-size:var(--font-size-caption);}
+.scm-trade .tpnl{margin-left:auto;font-weight:600;} .scm-trade .tpnl.pos{color:var(--color-positive);} .scm-trade .tpnl.neg{color:var(--color-negative);}
+.scard.oow{background:linear-gradient(160deg,rgba(245,158,11,.09),var(--card-bg));border-top:2px solid var(--color-warning);justify-content:center;align-items:flex-start;}
+.scm-prep{background:var(--color-intel-dim);border-left:3px solid var(--color-intel);border-radius:0 var(--radius-sm) var(--radius-sm) 0;padding:var(--space-4) var(--space-5);color:var(--color-text-primary);line-height:1.7;font-size:var(--font-size-body);}
+/* two-column spotlight: coaching (left) · forecast vs actual + post-mortem (right) */
+.scm-cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-top:var(--space-5);}
+.scm-col{min-width:0;}
+.scm-col+.scm-col{border-left:1px solid var(--color-border-subtle);padding-left:var(--space-6);}
+@media(max-width:680px){.scm-cols{grid-template-columns:1fr;}.scm-col+.scm-col{border-left:0;padding-left:0;border-top:1px solid var(--color-border-subtle);padding-top:var(--space-4);}}
+.scm-stats{display:flex;gap:var(--space-3);margin-top:var(--space-2);}
+.stat{flex:1;background:var(--color-bg-base);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-2);text-align:center;}
+.stat-v{font-family:var(--font-mono);font-size:22px;font-weight:600;color:var(--color-text-primary);font-variant-numeric:tabular-nums;line-height:1;}
+.stat-v.pos{color:var(--color-positive);}
+.stat-k{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--color-text-muted);margin-top:4px;}
+.acc-yes{color:var(--color-positive);font-weight:600;} .acc-no{color:var(--color-warning);font-weight:600;}
+/* ── TRI-PANEL SCORECARD — window (left) · session panels (right) ── */
+.scmodal.tri{width:min(1140px,97vw);}
+.scm-tri{display:grid;grid-template-columns:1.35fr 1fr;gap:var(--space-6);margin-top:var(--space-5);}
+.scm-win{min-width:0;border-right:1px solid var(--color-border-subtle);padding-right:var(--space-6);}
+.scm-side{display:flex;flex-direction:column;gap:var(--space-4);min-width:0;}
+.scm-panel{background:var(--color-bg-base);border:1px solid var(--color-border-subtle);border-radius:var(--radius-md);padding:var(--space-4);}
+.scm-panel.accent{border-color:var(--color-accent-border);background:linear-gradient(160deg,var(--color-intel-dim),var(--color-bg-base));}
+.panel-note{margin-top:var(--space-2);font-size:var(--font-size-small);line-height:1.55;}
+.rc-mini{display:flex;gap:var(--space-2);}
+.mini{flex:1;text-align:center;background:var(--color-bg-surface);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:var(--space-2) 2px;}
+.mini-v{font-family:var(--font-mono);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--color-text-primary);line-height:1;} .mini-v.pos{color:var(--color-positive);} .mini-v.neg{color:var(--color-negative);}
+.mini-k{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.03em;text-transform:uppercase;color:var(--color-text-muted);margin-top:3px;}
+@media(max-width:820px){.scm-tri{grid-template-columns:1fr;}.scm-win{border-right:0;padding-right:0;border-bottom:1px solid var(--color-border-subtle);padding-bottom:var(--space-4);}}
+/* visual chart bits inside the panels */
+.panel-viz{margin-top:var(--space-3);}
+.wspark,.eqspark{width:100%;height:52px;display:block;}
+.eqspark{height:44px;}
+.viz-cap{display:block;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.04em;color:var(--color-text-muted);margin-top:4px;text-align:center;}
+.obars{display:flex;flex-direction:column;gap:var(--space-2);}
+.obar{display:flex;align-items:center;gap:var(--space-2);font-family:var(--font-mono);font-size:var(--font-size-caption);}
+.obar-k{width:56px;flex:none;text-transform:uppercase;letter-spacing:.06em;color:var(--color-text-muted);}
+.obar-track{flex:1;height:9px;background:var(--color-bg-surface);border-radius:5px;overflow:hidden;}
+.obar-fill{height:100%;border-radius:5px;transition:width .4s;}
+.obar-fill.off{background:var(--color-accent);} .obar-fill.cap{background:var(--color-positive);} .obar-fill.neg{background:var(--color-negative);}
+.obar b{width:56px;text-align:right;flex:none;color:var(--color-text-secondary);}
+/* ── DAY REPORT CARD ── */
+.scard.report{background:linear-gradient(160deg,rgba(201,168,76,.08),var(--card-bg));border-top:2px solid var(--color-accent);justify-content:center;align-items:flex-start;}
+.rc-tile-lbl{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.14em;text-transform:uppercase;color:var(--color-accent);}
+.rc-tile-net{font-family:var(--font-display);font-size:40px;line-height:1;margin:var(--space-2) 0;} .rc-tile-net.pos{color:var(--color-positive);} .rc-tile-net.neg{color:var(--color-negative);}
+.rc-tile-sub{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);}
+.rc-gauges{display:flex;gap:var(--space-5);margin-top:var(--space-4);justify-content:space-around;}
+.gauge-card{flex:1;text-align:center;}
+.gauge{width:100%;max-width:150px;height:auto;display:block;margin:0 auto;}
+.gauge-big{font-family:var(--font-mono);font-size:21px;font-weight:700;}
+.gauge-lbl{font-family:var(--font-mono);font-size:var(--font-size-label);letter-spacing:.1em;text-transform:uppercase;color:var(--color-text-secondary);margin-top:4px;}
+.gauge-sub{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);}
+.rc-kpis{display:flex;gap:var(--space-3);margin-top:var(--space-5);flex-wrap:wrap;}
+.rc-kpi{flex:1;min-width:110px;background:var(--color-bg-base);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);padding:var(--space-3);text-align:center;}
+.rc-kpi-v{font-family:var(--font-mono);font-size:var(--font-size-h2);font-weight:600;font-variant-numeric:tabular-nums;color:var(--color-text-primary);} .rc-kpi-v.pos{color:var(--color-positive);} .rc-kpi-v.neg{color:var(--color-negative);}
+.rc-kpi-k{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.06em;text-transform:uppercase;color:var(--color-text-muted);margin-top:4px;}
+.rc-leak{font-size:var(--font-size-body);color:var(--color-text-secondary);line-height:1.55;padding:var(--space-2) 0;border-bottom:1px solid var(--color-border-subtle);}
+.rc-leak-v{font-family:var(--font-mono);font-weight:700;font-size:var(--font-size-h2);display:inline-block;margin-right:var(--space-2);} .rc-leak-v.neg{color:var(--color-negative);} .rc-leak-v:not(.neg){color:var(--color-warning);}
+.rc-hr{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:var(--font-size-small);padding:var(--space-2) 0;} .rc-hr b.pos{color:var(--color-positive);} .rc-hr b.neg{color:var(--color-negative);}
+.rc-hours{display:flex;flex-direction:column;gap:5px;}
+.rc-hbar{display:flex;align-items:center;gap:var(--space-2);font-family:var(--font-mono);font-size:var(--font-size-caption);}
+.rc-hh{width:44px;color:var(--color-text-muted);flex:none;}
+.rc-htrack{flex:1;height:6px;background:var(--color-bg-base);border-radius:3px;overflow:hidden;}
+.rc-hfill{height:100%;border-radius:3px;} .rc-hfill.pos{background:var(--color-positive);} .rc-hfill.neg{background:var(--color-negative);}
+.rc-hbar b{width:52px;text-align:right;flex:none;} .rc-hbar b.pos{color:var(--color-positive);} .rc-hbar b.neg{color:var(--color-negative);}
+/* ── TRADING VAULT ── */
+.vaultmodal{width:min(920px,95vw);max-height:88vh;overflow-y:auto;background:var(--color-bg-surface);border:1px solid var(--color-accent-border);border-top:3px solid var(--color-accent);border-radius:var(--radius-lg);box-shadow:0 24px 80px rgba(0,0,0,.6);padding:var(--space-6);animation:scpop .24s cubic-bezier(.2,.8,.2,1);position:relative;}
+/* ═══ THE FILM ROOM ═══ */
+.filmmodal{width:min(1080px,96vw);max-height:90vh;overflow-y:auto;background:var(--color-bg-surface);border:1px solid var(--color-accent-border);border-top:3px solid var(--color-accent);border-radius:var(--radius-lg);box-shadow:0 24px 80px rgba(0,0,0,.6);padding:var(--space-6);animation:scpop .24s cubic-bezier(.2,.8,.2,1);position:relative;}
+.film-head{margin-bottom:var(--space-5);padding-right:44px;}
+.film-title{font-family:var(--font-display);font-size:1.9rem;color:var(--color-accent);letter-spacing:.02em;}
+.film-sub{color:var(--color-text-muted);font-size:var(--font-size-caption);margin-top:2px;}
+.film-load,.film-empty{padding:var(--space-8);text-align:center;color:var(--color-text-muted);font-family:var(--font-mono);}
+.film-empty .film-title{color:var(--color-accent);margin-bottom:var(--space-3);}
+.film-sec{margin-bottom:var(--space-6);}
+.film-h{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-subtle);padding-bottom:6px;margin-bottom:var(--space-4);}
+.film-h2{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--color-text-muted);margin:var(--space-4) 0 var(--space-3);}
+.film-ecards,.film-vs{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);}
+.film-ecard,.film-vcard{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:var(--space-4);}
+.film-ecard.hero{border-color:var(--color-accent-border);background:color-mix(in srgb,var(--color-accent) 5%,var(--card-bg));}
+.film-elbl{font-family:var(--font-display);font-size:1.2rem;color:var(--color-text-primary);}
+.film-esub{font-size:.62rem;color:var(--color-text-muted);letter-spacing:.04em;margin-bottom:var(--space-3);min-height:1.6em;}
+.film-ebig{font-family:var(--font-mono);font-size:2.1rem;font-weight:700;line-height:1;}
+.film-ebig span{font-size:.9rem;opacity:.6;margin-left:2px;}
+.film-eb2{font-size:.58rem;color:var(--color-text-muted);letter-spacing:.06em;margin-bottom:var(--space-3);}
+.film-erow,.film-vrow{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:.72rem;padding:3px 0;color:var(--color-text-muted);border-top:1px solid var(--color-border-subtle);}
+.film-erow b,.film-vrow b{color:var(--color-text-secondary);}
+.film-erow.dim,.film-vrow.dim{opacity:.6;}
+.film-reco{background:color-mix(in srgb,var(--color-intel) 8%,transparent);border:1px solid var(--color-intel);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);font-size:var(--font-size-caption);color:var(--color-text-secondary);line-height:1.55;margin-bottom:var(--space-4);}
+.film-reco b{color:var(--color-intel);}.film-reco .pos{color:var(--color-positive);}.film-cur{color:var(--color-accent);}
+.film-tbl{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:.72rem;}
+.film-tbl th{text-align:right;color:var(--color-text-muted);font-weight:400;letter-spacing:.06em;padding:4px 10px;border-bottom:1px solid var(--color-border-default);}
+.film-tbl td{text-align:right;padding:4px 10px;color:var(--color-text-secondary);border-bottom:1px solid var(--color-border-subtle);}
+.film-tbl tr.best td{background:color-mix(in srgb,var(--color-accent) 10%,transparent);color:var(--color-accent);}
+.film-tbl .pos{color:var(--color-positive);}.film-tbl .neg{color:var(--color-negative);}
+.film-insight{background:var(--card-bg);border-left:3px solid var(--color-intel);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);font-size:var(--font-size-caption);color:var(--color-text-secondary);line-height:1.55;margin:var(--space-4) 0;}
+.film-insight b{color:var(--color-intel);}
+.film-sigs{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-4);}
+.film-sigcard{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-md);padding:var(--space-4);}
+.film-sigcard .sig-body{font-size:var(--font-size-caption);color:var(--color-text-secondary);line-height:1.5;margin-top:var(--space-2);}
+.film-sigcard .sig-body b.pos{color:var(--color-positive);}.film-sigcard .sig-body b.neg{color:var(--color-negative);}
+.sig-verdict{margin-top:6px;padding-top:6px;border-top:1px solid var(--color-border-subtle);color:var(--color-text-primary);font-size:.66rem;line-height:1.45;}
+@media(max-width:820px){.film-sigs{grid-template-columns:1fr;}}
+.film-reel{display:flex;flex-direction:column;gap:8px;}
+.film-clip{display:flex;gap:var(--space-4);align-items:center;background:var(--card-bg);border:1px solid var(--card-border);border-left:3px solid var(--color-border-default);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);}
+.film-clip.counter{border-left-color:var(--color-negative);}
+.film-clip.off{border-left-color:var(--color-warning);}
+.film-clip.aligned{border-left-color:var(--color-text-muted);}
+.film-clip-l{display:flex;flex-direction:column;min-width:130px;}
+.film-clip-pnl{font-family:var(--font-mono);font-weight:700;}
+.film-clip-side{font-family:var(--font-mono);font-size:.6rem;color:var(--color-text-muted);letter-spacing:.04em;}
+.film-clip-lesson{font-size:var(--font-size-caption);color:var(--color-text-secondary);line-height:1.5;}
+.film-runbtn{font-family:var(--font-mono);font-size:.74rem;letter-spacing:.06em;padding:10px 18px;border:1px solid var(--color-accent);color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 8%,transparent);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s;}
+.film-runbtn:hover{background:color-mix(in srgb,var(--color-accent) 16%,transparent);}
+.film-thinking{color:var(--color-text-muted);font-family:var(--font-mono);font-size:var(--font-size-caption);}
+.film-ariestext{background:var(--card-bg);border:1px solid var(--color-accent-border);border-radius:var(--radius-sm);padding:var(--space-4);font-size:var(--font-size-caption);line-height:1.6;color:var(--color-text-primary);}
+@media(max-width:820px){.film-ecards,.film-vs{grid-template-columns:1fr;}}
+.vaultmodal.wide{width:min(720px,95vw);}
+.vault-head{text-align:center;margin-bottom:var(--space-5);}
+.vault-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:var(--space-4);}
+.vcard{cursor:pointer;display:flex;flex-direction:column;gap:var(--space-2);transition:transform .18s;}
+.vcard:hover{transform:translateY(-4px);}
+.vthumb{width:100%;height:auto;display:block;border-radius:9px;box-shadow:0 6px 20px rgba(0,0,0,.45);transition:box-shadow .2s;}
+.vcard:hover .vthumb{box-shadow:0 12px 30px rgba(0,0,0,.6),0 0 0 1px var(--color-accent-border);}
+.vt-cat{font-family:var(--font-mono);font-size:8px;letter-spacing:.16em;}
+.vt-mono{font-family:var(--font-display);font-size:88px;}
+.vt-sur{font-family:var(--font-display);font-size:17px;fill:var(--color-cream);}
+.vt-era{font-family:var(--font-mono);font-size:7.5px;letter-spacing:.04em;fill:rgba(245,240,232,.5);}
+.vcard-tag{font-size:var(--font-size-small);color:var(--color-text-muted);line-height:1.4;}
+.ventry{display:flex;gap:var(--space-6);align-items:flex-start;}
+.ventry-thumb{flex:0 0 180px;}
+.ventry-body{flex:1;min-width:0;}
+.ventry-blurb{font-size:var(--font-size-body);color:var(--color-text-secondary);line-height:1.65;margin-top:var(--space-3);}
+.ventry-gives{list-style:none;margin-top:var(--space-2);}
+.ventry-gives li{font-size:var(--font-size-small);color:var(--color-text-secondary);padding:4px 0 4px 16px;position:relative;}
+.ventry-gives li::before{content:"◆";position:absolute;left:0;color:var(--color-accent);font-size:8px;top:7px;}
+.ventry-links{display:flex;flex-direction:column;gap:var(--space-2);margin-top:var(--space-2);}
+.ventry-links a{font-family:var(--font-mono);font-size:var(--font-size-small);color:var(--color-intel);text-decoration:none;}
+.ventry-links a:hover{color:var(--color-accent);text-decoration:underline;}
+.ventry-back{margin-top:var(--space-5);background:none;border:1px solid var(--color-border-default);color:var(--color-text-muted);border-radius:var(--radius-pill);padding:6px 14px;cursor:pointer;font-family:var(--font-mono);font-size:var(--font-size-caption);}
+.ventry-back:hover{border-color:var(--color-accent);color:var(--color-accent);}
+@media(max-width:560px){.ventry{flex-direction:column;}.ventry-thumb{flex:0 0 auto;align-self:center;width:150px;}}
+/* citation chips inside Aries's notes */
+.vref{color:var(--color-intel);border-bottom:1px dotted var(--color-intel);cursor:pointer;font-weight:600;text-decoration:none;}
+.vref:hover,.vref:focus{color:var(--color-accent);border-bottom-color:var(--color-accent);outline:none;}
+.reftip{position:fixed;z-index:300;width:228px;background:var(--color-bg-overlay);border:1px solid var(--color-accent-border);border-radius:var(--radius-md);padding:var(--space-3);box-shadow:0 12px 30px rgba(0,0,0,.5);font-size:var(--font-size-small);color:var(--color-text-secondary);line-height:1.45;pointer-events:none;}
+.reftip .rt-cat{display:block;font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.1em;color:var(--color-accent);margin-bottom:4px;}
+.reftip .rt-go{display:block;font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-top:var(--space-2);}
+.acct{background:var(--card-bg);border:1px solid var(--card-border);border-left:3px solid var(--color-border-strong);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);min-width:224px;flex:1 1 224px;max-width:300px;}
+.acct.pos{border-left-color:var(--color-positive);} .acct.neg{border-left-color:var(--color-negative);} .acct.flat2{border-left-color:var(--color-border-strong);}
+.acct.stale{opacity:.4;}
+.acct .an{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-2);}
+.acct .anm{font-family:var(--font-mono);font-size:var(--font-size-label);color:var(--color-text-secondary);letter-spacing:.02em;}
+.acct .dot{width:6px;height:6px;border-radius:50%;background:var(--color-positive);} .acct .dot.off{background:var(--color-text-disabled);}
+.acct .pnl{font-family:var(--font-mono);font-size:22px;font-variant-numeric:tabular-nums;line-height:1.1;}
+.acct .pnl.pos{color:var(--color-positive);} .acct .pnl.neg{color:var(--color-negative);} .acct .pnl.flat2{color:var(--color-text-muted);}
+.acct .sub2{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-top:var(--space-2);display:flex;gap:var(--space-3);}
+.acct .sub2 b{color:var(--color-text-secondary);}
+/* live position on an account card — side/size/entry + unrealized-P&L progress bar */
+.acct.haspos{border-left-color:var(--color-accent);}
+.posblock{margin-top:var(--space-3);padding-top:var(--space-2);border-top:1px solid var(--color-border-subtle);}
+.posrow{display:flex;align-items:center;gap:var(--space-2);font-family:var(--font-mono);font-size:var(--font-size-caption);margin-bottom:4px;}
+.ptag{font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:var(--radius-sm);font-size:9px;}
+.ptag.long{color:var(--color-bg-base);background:var(--color-positive);} .ptag.short{color:var(--color-bg-base);background:var(--color-negative);}
+.pqty{color:var(--color-text-secondary);}
+.posunrl{margin-left:auto;font-weight:600;} .posunrl.pos{color:var(--color-positive);} .posunrl.neg{color:var(--color-negative);}
+.posbar{position:relative;height:5px;border-radius:3px;background:var(--color-bg-elevated);overflow:hidden;}
+.posfill{position:absolute;top:0;bottom:0;left:0;border-radius:3px;transition:width .3s;}
+.posfill.pos{background:var(--color-positive);} .posfill.neg{background:var(--color-negative);}
+.acctsum{font-family:var(--font-mono);font-size:var(--font-size-label);display:flex;gap:var(--space-4);}
+.acctsum .v{color:var(--color-text-primary);font-variant-numeric:tabular-nums;}
+.acctsum .v.pos{color:var(--color-positive);} .acctsum .v.neg{color:var(--color-negative);}
+/* your trading — KPI tiles */
+#mytrading{margin-top:var(--space-2);}
+.edgesel{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:var(--space-3);}
+.edgebtn{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.06em;padding:5px 11px;border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);
+  background:transparent;color:var(--color-text-muted);cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:5px;}
+.edgebtn:hover{border-color:var(--color-border-default);color:var(--color-text-secondary);}
+.edgebtn.on{border-color:var(--color-accent);color:var(--color-accent);background:color-mix(in srgb,var(--color-accent) 9%,transparent);}
+.acctsel{margin-bottom:6px;}
+.acctbtn.on{border-color:var(--color-intel);color:var(--color-intel);background:color-mix(in srgb,var(--color-intel) 10%,transparent);}
+.edgebtn .edgen{font-size:.58rem;opacity:.6;}
+.edgespark{display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-3);padding:var(--space-2) var(--space-3);background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-sm);}
+.edgespark svg{height:40px;width:220px;flex:0 0 auto;}
+.edgesparklbl{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);letter-spacing:.04em;}
+.mtgrid{display:flex;gap:var(--space-3);flex-wrap:wrap;}
+.kpi{background:var(--card-bg);border:1px solid var(--card-border);border-radius:var(--radius-sm);padding:var(--space-3) var(--space-4);min-width:120px;flex:1 1 120px;}
+.kpi .kl{font-family:var(--font-mono);font-size:var(--font-size-caption);letter-spacing:.12em;text-transform:uppercase;color:var(--color-text-muted);}
+.kpi .kv{font-family:var(--font-mono);font-size:24px;font-variant-numeric:tabular-nums;line-height:1.15;color:var(--color-text-primary);margin-top:2px;}
+.kpi .kv.pos{color:var(--color-positive);} .kpi .kv.neg{color:var(--color-negative);}
+.kpi .ks{font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-top:2px;}
+.kpi.split{min-width:200px;flex:1 1 200px;}
+.kpi.split .row{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:var(--font-size-small);padding:3px 0;border-bottom:1px solid var(--color-border-subtle);}
+.kpi.split .row:last-child{border-bottom:0;} .kpi.split .row b{font-variant-numeric:tabular-nums;}
+.kpi.warn{border-color:var(--color-warning);} .kpi.warn .kv{color:var(--color-warning);}
+/* backtests */
+.btsec{margin-top:var(--space-6);}
+.btsec .eyebrow{display:block;}
+.spark{display:block;width:100%;background:var(--color-bg-base);border:1px solid var(--color-border-subtle);border-radius:var(--radius-sm);}
+/* error shake — server offline */
+.shake{animation:shake var(--dur-error-shake) linear;}
+@keyframes shake{0%,100%{transform:none;}17%,50%,83%{transform:translateX(-2px);}33%,66%{transform:translateX(2px);}}
+@media(max-width:1200px){.feedrail{width:100%;position:static;max-height:320px;border-left:0;border-top:1px solid var(--color-border-subtle);}.shell{flex-wrap:wrap;}}
+@media(max-width:640px){.rail{display:none;}main{padding:var(--space-4);}.hcard{width:100%;}.hcard.wide{min-width:0;flex-basis:100%;}.cardcol{min-width:0;}}
+</style></head>
+<body>
+<!-- GROUND LAYER HUD -->
+<div class="hud">
+  <span class="hud-brand">GR · ROLLING FIB</span>
+  <span class="chip loading" id="chipRadar"><span class="lbl">Radar</span><span class="val">—</span></span>
+  <span class="chip loading" id="chipFeed"><span class="lbl">Feed</span><span class="val">—</span></span>
+  <span class="chip loading" id="chipDay"><span class="lbl">Day P&amp;L</span><span class="val">—</span></span>
+  <span class="chip loading" id="chipBlocks"><span class="lbl">Blocked</span><span class="val">—</span></span>
+  <span class="chip" id="chipClock"><span class="lbl">Session</span><span class="val" id="clockv">—</span></span>
+  <span class="spacer"></span>
+  <button class="density" id="alertBtn" title="Enable + test the qualify alert">🔔 ALERTS OFF</button>
+  <button class="density" id="densBtn" title="Density mode">COMFORTABLE</button>
+</div>
+
+<!-- ticker tape — at the top, market pulse always visible -->
+<div style="border-bottom:1px solid var(--color-border-subtle);background:var(--color-bg-surface);">
+<div class="tradingview-widget-container">
+  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
+  { "symbols": [
+      {"proName":"FOREXCOM:SPXUSD","title":"S&P 500"},
+      {"proName":"FOREXCOM:NSXUSD","title":"US 100"},
+      {"proName":"FOREXCOM:DJI","title":"US 30"},
+      {"proName":"CAPITALCOM:VIX","title":"VIX"},
+      {"proName":"CAPITALCOM:DXY","title":"DXY"}],
+    "showSymbolLogo": false, "colorTheme": "dark", "isTransparent": true, "displayMode": "regular", "locale": "en" }
+  </script>
+</div></div>
+<div class="shell">
+  <!-- NAV RAIL -->
+  <nav class="rail">
+    <a class="active" href="#radar"><span class="glyph">◈</span>RADAR</a>
+    <a href="#term"><span class="glyph">◧</span>TERM</a>
+    <a href="#" id="filmNav"><span class="glyph">◉</span>FILM</a>
+    <a href="#" id="vaultNav"><span class="glyph">❖</span>VAULT</a>
+  </nav>
+
+  <!-- SUITE CONTENT -->
+  <main>
+    <div class="suite-head" id="radar">
+      <span class="eyebrow">Rolling Fib Radar</span>
+      <h1>Genesis Futures</h1>
+      <div class="sub">The Trading Intelligence OS</div>
+      <div class="tagline">1H qualifies · 15m confirms · 5m executes — the guardrails decide when to stand down</div>
+    </div>
+    <div class="deck">
+      <div id="cards" class="cardcol"><div class="empty">No live grid. Frames light up here only when the strategy runs on a <b>live or Market&nbsp;Replay</b> chart during a qualifying hour — Strategy&nbsp;Analyzer backtests do not feed the dashboard (see the TESTS section below for those). Verify backtest grids on the NinjaTrader chart itself (they now persist).</div></div>
+      <div class="hcard wide" id="term">
+        <div class="thead">MES terminal — live from NinjaTrader · the fib grid plotted on your real instrument <span id="termmeta" class="termmeta"></span></div>
+        <div class="mchartwrap"><canvas id="mchart"></canvas>
+          <div class="charttools">
+            <button class="ctool on" data-tool="grab" title="Grab / pan — drag to move, double-click to center">✋</button>
+            <button class="ctool" id="ctCross" title="Crosshair — read price & time at the cursor">✛</button>
+            <button class="ctool" data-tool="trend" title="Trendline — drag to draw">╱</button>
+            <button class="ctool" id="ctClear" title="Clear your drawings">⌫</button>
+            <button class="ctool" id="ctCenter" title="Center on the live edge">⊙</button>
+          </div>
+          <div class="gridctl" title="Grid brightness — dim or brighten the fib grids"><span class="gdicon">◱</span><input type="range" id="gridDim" min="12" max="100" value="100"><span class="gdval" id="gridDimVal">100%</span></div>
+          <div id="mchartempty" class="empty">Recompile <b>RollingFibRadar</b> (F5) on your 5-minute MES chart — it streams the real bars here and plots the grid, congruent with the radar.</div>
+        </div>
+      </div>
+    </div>
+
+    <section id="accts">
+      <div class="secbar"><span class="eyebrow">Performance · live accounts</span>
+        <span class="secright" id="acctsummary"></span></div>
+      <div class="acctstrip" id="acctgrid"><div class="empty">Add the <b>RollingFibAccounts</b> indicator to one chart with a live Apex connection — your accounts stream here.</div></div>
+    </section>
+
+    <section id="scorecards">
+      <div class="secbar"><span class="eyebrow">Window score cards · your day, hour by hour</span>
+        <span class="scnav"><button id="scPrev" title="Previous archived day">‹</button><span id="scDateLbl">Today · live</span><button id="scNext" title="Next day / back to live">›</button></span>
+        <span class="secright" id="scavg"></span></div>
+      <div class="scrow" id="screl"><div class="empty">No windows scored yet today — each qualifying hour drops a prep card here.</div></div>
+    </section>
+
+    <section id="mytrading">
+      <div class="secbar"><span class="eyebrow">Your trading · live edge</span>
+        <span class="secright" id="mtfile" style="font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-disabled);"></span></div>
+      <div id="mtpanel"><div class="empty">Drop a NinjaTrader "Live Trades" CSV into Documents\RollingFib\backtests and your real edge scores here.</div></div>
+    </section>
+
+    <details class="drawer" id="bt">
+      <summary class="drawerhead"><span class="eyebrow">Backtests &amp; trade logs</span><span class="drawercount" id="btcount"></span><span class="chev">▾</span></summary>
+      <div class="drawerbody">
+        <div style="font-family:var(--font-mono);font-size:var(--font-size-caption);color:var(--color-text-muted);margin-bottom:var(--space-3);">drop TradingView / NinjaTrader trade CSVs into Documents\RollingFib\backtests</div>
+        <div class="grid" id="btgrid"><div class="empty">No backtest files yet.</div></div>
+      </div>
+    </details>
+  </main>
+
+  <!-- CO-PILOT RAIL -->
+  <button id="railExpand" title="Show Aries panel">‹ ARIES</button>
+  <aside class="feedrail">
+    <header><button id="railCollapse" class="voicebtn" title="Collapse Aries panel">›</button><span class="who">ARIES</span><button id="watchBtn" class="voicebtn" title="Trigger Vision — Aries snapshots your chart & preps you the moment a candle qualifies, arms, or confirms">🛰️</button><button id="chartBtn" class="voicebtn" title="Read my chart — shares your screen so Aries can see it">👁️</button><button id="micBtn" class="voicebtn" title="Live Voice — realtime conversation with Aries (talk naturally, interrupt anytime)">🎙️</button><button id="voiceBtn" class="voicebtn" title="Aries voice on/off">🔇</button><button id="voicePickBtn" class="voicebtn" title="Choose Aries's voice — tap a voice to hear it">🎚️</button><span id="regime" class="regimechip">—</span><span class="conndot off" id="conn"></span></header>
+    <div id="voicePanel" class="voicepanel" hidden></div>
+    <div id="coaching" class="coaching"></div>
+    <div class="railsec"><span>Ask Aries · Gemini 2.5</span><span id="brainDot" class="railsecR" title="Aries brain connecting…">●</span></div>
+    <div id="chat" class="chat"></div>
+    <form id="askForm" class="askrow">
+      <input id="askInput" type="text" placeholder="Ask about the tape, a setup, your risk…" autocomplete="off">
+      <button type="submit" id="askBtn" title="Ask Aries">→</button>
+    </form>
+    <span id="avgGrade" hidden></span>
+    <div class="railsec"><span>Live feed</span></div>
+    <div id="feed" class="feed"><div class="empty" style="padding:var(--space-4);">Measuring.</div></div>
+  </aside>
+</div>
+
+<!-- WINDOW SPOTLIGHT — a score card expanded to center, dashboard dimmed behind -->
+<div id="scback" class="scback" hidden><div id="scmodal" class="scmodal" role="dialog" aria-modal="true"></div></div>
+
+<!-- TRADING VAULT — curated reference library of the frameworks Aries coaches from -->
+<div id="vaultback" class="scback" hidden><div id="vaultmodal" class="vaultmodal" role="dialog" aria-modal="true"></div></div>
+<!-- THE FILM ROOM — system edge · optimizer · you vs the system (instant replay for the desk) -->
+<div id="filmback" class="scback" hidden><div id="filmmodal" class="filmmodal" role="dialog" aria-modal="true"></div></div>
+<div id="reftip" class="reftip" hidden></div>
+
+<script>
+const NAME=["0","23.6","38.2","50","61.8","78.6","100","161.8"];
+const POS_R_PTS=5;   // 1R risk unit in MES points for the projected stop/target envelope (tune to taste)
+const $=id=>document.getElementById(id);
+// LOCAL (ET) trading day — must match the server, which keys windows/trades by the local trading day
+const localToday=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+let _lastCards="",_lastFeed="",_lastBt="",_lastAcct="";   // repaint guards — only touch the DOM when data changed
+let _lastQualKey=null,_lastArmKey=null,_lastConfKey=null,_lastFadeKey=null,_lastContKey=null,_alertsReady=false;    // qualify/prearm/confirm/fade/continuation alert dedupe
+let _triggerVision=false;   // 🛰️ armed → Aries auto-snapshots & preps on each qualify/arm/confirm trigger
+// qualify alert: a rising two-tone chime (Web Audio, no file needed) + desktop notification
+function chime(){
+  try{
+    const a=new (window.AudioContext||window.webkitAudioContext)();
+    [ [880,0],[1320,0.14],[1760,0.28] ].forEach(([f,t])=>{
+      const o=a.createOscillator(),g=a.createGain();
+      o.type="sine";o.frequency.value=f;o.connect(g);g.connect(a.destination);
+      g.gain.setValueAtTime(0.0001,a.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.25,a.currentTime+t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+t+0.16);
+      o.start(a.currentTime+t);o.stop(a.currentTime+t+0.18);
+    });
+  }catch(e){}
+}
+function notify(title,body){
+  try{ if(window.Notification&&Notification.permission==="granted") new Notification(title,{body:body,requireInteraction:true}); }catch(e){}
+}
+/* ── ARIES · voice — ONE consistent voice per session, never switching mid-conversation ──
+   Rule: if the Gemini brain is online, she ALWAYS speaks in the neural voice (server ARIES_VOICE, e.g.
+   Kore). If a single TTS call hiccups we retry, and if it still fails we stay SILENT (the reply is
+   already on screen) rather than drop to the robotic browser voice — that swap was the mid-convo switch.
+   The browser voice is used ONLY when there is no brain at all (no key), and then its pick is LOCKED. */
+let ariesVoice=false, _ariesV=null, _lastSpoken="", _speaking=false, _brainOnline=false, _ariesAudio=null, _voiceLocked=false, _lastTTSErr="", _ttsWarnAt=0;
+let _ariesVoiceName=localStorage.getItem("rf_voice")||"Kore";   // chosen neural voice (Gemini prebuilt) — test/switch from the picker
+const VOICES=[["Kore","firm, grounded"],["Aoede","breezy, light"],["Leda","bright, youthful"],["Callirrhoe","easy-going"],["Autonoe","warm"],["Sulafat","rich, mature"],["Zephyr","airy"],["Despina","smooth"],["Vindemiatrix","gentle"],["Achernar","soft, calm"]];
+// FREE-TIER BUDGET GUARD — Gemini caps at brain 20/min, voice 10/min. Track calls in a rolling 60s
+// window so we proactively hold back (text-only) BEFORE tripping the ~40s hard lockout, and so Live
+// Watch yields brain budget to your live conversation.
+const RL={brain:[],tts:[]};
+function rlCount(k){ const now=Date.now(),a=RL[k]; while(a.length&&now-a[0]>60000)a.shift(); return a.length; }
+function rlHit(k){ RL[k].push(Date.now()); }
+function pickAriesVoice(){
+  if(_voiceLocked) return;                                      // lock once chosen so it never changes
+  const vs=window.speechSynthesis?speechSynthesis.getVoices():[];
+  if(!vs.length) return;
+  const en=vs.filter(v=>/^en(-|_|$)/i.test(v.lang));
+  const pool=en.length?en:vs;
+  const rank=v=>{
+    const n=v.name.toLowerCase();
+    let s=0;
+    if(/natural|neural|online/.test(n))s+=100;                 // Edge neural voices — top tier
+    if(/aria|jenny|michelle|ava|emma|clara|sonia|libby/.test(n))s+=40; // warm neural female names
+    if(/google us english|google/.test(n))s+=35;               // Chrome's decent default
+    if(/samantha/.test(n))s+=30;                               // macOS natural
+    if(/female|zira|hazel/.test(n))s+=10;                      // last-resort female SAPI
+    if(/en-us/i.test(v.lang))s+=5;
+    return s;
+  };
+  _ariesV=pool.slice().sort((a,b)=>rank(b)-rank(a))[0]||vs[0]||null;
+  if(_ariesV) _voiceLocked=true;
+}
+if(window.speechSynthesis){ speechSynthesis.onvoiceschanged=pickAriesVoice; pickAriesVoice(); }
+function _micPauseOn(){ _speaking=true; if(listening&&_recog){try{_recog.stop();}catch(e){}} }
+function _micResume(){ _speaking=false; if(listening) startRecog(); }
+function stopAriesAudio(){ _uttTok++;   // invalidate the current utterance so stale fetches/clips are dropped
+  if(_utt){ _utt.ctls.forEach(c=>{try{c.abort();}catch(e){}}); if(_utt.micPaused){_utt.micPaused=false;_micResume();} _utt=null; }
+  if(_ariesAudio){try{_ariesAudio.pause();}catch(e){} _ariesAudio=null;} if(window.speechSynthesis)speechSynthesis.cancel(); }
+// browser Web Speech — used ONLY when the brain has never been online this session
+function speakBrowser(text){
+  if(!window.speechSynthesis)return;
+  const u=new SpeechSynthesisUtterance(text); u.rate=0.98; u.pitch=1.0; u.volume=1;
+  if(_ariesV)u.voice=_ariesV;
+  u.onstart=_micPauseOn; u.onend=_micResume;
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+// ── VOICE PICKER — tap a voice to hear it; the choice persists and drives all of Aries's speech ──
+function testVoice(){ aries("Hey Rich, this is "+_ariesVoiceName+". This is how I sound on the desk — ready when you are.",true); }
+function renderVoicePanel(){
+  const p=$("voicePanel"); if(!p)return;
+  p.innerHTML='<div class="vp-head">Aries voice · tap to hear</div>'+VOICES.map(v=>
+    '<button class="vp-row'+(v[0]===_ariesVoiceName?" on":"")+'" data-voice="'+v[0]+'"><span class="vp-name">'+v[0]+'</span><span class="vp-desc">'+v[1]+'</span><span class="vp-play">▶</span></button>').join("");
+  p.querySelectorAll(".vp-row").forEach(b=>b.onclick=()=>{ _ariesVoiceName=b.dataset.voice; localStorage.setItem("rf_voice",_ariesVoiceName);
+    p.querySelectorAll(".vp-row").forEach(x=>x.classList.toggle("on",x.dataset.voice===_ariesVoiceName));
+    testVoice(); });   // switching a live session's voice needs a new Live session; TTS + next Live use it immediately
+}
+(function(){ const b=$("voicePickBtn"); if(b)b.onclick=()=>{ const p=$("voicePanel"); if(!p)return; if(p.hidden){renderVoicePanel();p.hidden=false;}else p.hidden=true; }; })();
+// fetch the neural WAV with a hard timeout so a hung call doesn't stall the retry
+async function fetchTTS(text,extSignal){
+  const ctl=new AbortController(), to=setTimeout(()=>ctl.abort(),14000);   // shorter now — chunks are single sentences
+  if(extSignal){ if(extSignal.aborted)ctl.abort(); else extSignal.addEventListener("abort",()=>ctl.abort(),{once:true}); }
+  try{
+    const r=await fetch("/api/tts",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text,voice:_ariesVoiceName}),signal:ctl.signal});
+    if(r.ok && (r.headers.get("Content-Type")||"").indexOf("audio")>=0){ _lastTTSErr=""; return await r.arrayBuffer(); }
+    try{ const j=await r.json(); _lastTTSErr=(j&&j.error)||""; }catch(e){ _lastTTSErr=""; }
+    return null;
+  } finally { clearTimeout(to); }
+}
+// TTS latency is generation-bound (a 5-sentence clip = ~19s as one batch), so STREAM by sentence:
+// pipeline the chunks — play each in order the instant it's ready while the next ones generate. First
+// sound in ~2s instead of ~19s. Concurrency-capped, and a fresh utterance aborts the old one cleanly.
+let _uttTok=0,_utt=null;
+function _splitSentences(text){
+  const raw=String(text||"").replace(/\s+/g," ").trim(); if(!raw)return [];
+  const sents=raw.match(/[^.!?]+[.!?]+|\S[^.!?]*$/g)||[raw];
+  const out=[]; let cur="";
+  for(const s0 of sents){ const s=s0.trim(); if(!s)continue;
+    if(cur&&(cur.length+s.length)>150){ out.push(cur); cur=s; } else cur=cur?cur+" "+s:s; }
+  if(cur)out.push(cur); return out.slice(0,8);
+}
+async function aries(text,force){
+  if((!ariesVoice&&!force)||!text)return;
+  if(_live)return;                       // a realtime Live session is speaking — don't double up
+  if(!_brainOnline){ speakBrowser(text); return; }   // no brain → browser voice (locked pick)
+  if(rlCount("tts")>=45){ if(Date.now()-_ttsWarnAt>45000){ _ttsWarnAt=Date.now(); chatAdd("ai err","🔇 Voice is very busy — brief text-only beat.","ARIES"); } return; }
+  stopAriesAudio();                      // stop + invalidate any prior utterance
+  const tok=++_uttTok, sents=_splitSentences(text); if(!sents.length)return;
+  const u={tok,sents,clips:new Array(sents.length).fill(null),ctls:[],playIdx:0,playing:false,micPaused:false,fetched:0,inflight:0}; _utt=u;
+  const finish=()=>{ if(u.micPaused){u.micPaused=false;_micResume();} };
+  const pump=()=>{ if(u.tok!==_uttTok||u.playing)return;
+    while(u.playIdx<sents.length&&u.clips[u.playIdx]==="err")u.playIdx++;          // skip failed chunks
+    if(u.playIdx>=sents.length){ finish(); return; }
+    const buf=u.clips[u.playIdx]; if(!buf)return;                                  // next chunk not ready — wait
+    u.playing=true; if(!u.micPaused){u.micPaused=true;_micPauseOn();}              // mic pause spans the whole utterance
+    const url=URL.createObjectURL(new Blob([buf],{type:"audio/wav"})),a=new Audio(url); _ariesAudio=a;
+    a.onended=a.onerror=()=>{ URL.revokeObjectURL(url); if(_ariesAudio===a)_ariesAudio=null; u.playing=false; u.playIdx++;
+      if(u.tok===_uttTok)pump(); else finish(); };
+    a.play().catch(()=>{ u.playing=false; u.playIdx++; if(u.tok===_uttTok)pump(); });
+  };
+  const fetchNext=()=>{ if(u.tok!==_uttTok)return;
+    while(u.inflight<3&&u.fetched<sents.length){ const i=u.fetched++; u.inflight++;
+      const c=new AbortController(); u.ctls.push(c); rlHit("tts");
+      fetchTTS(sents[i],c.signal).then(b=>{ if(u.tok!==_uttTok)return; u.clips[i]=b||"err"; u.inflight--; pump(); fetchNext(); })
+        .catch(()=>{ if(u.tok!==_uttTok)return; u.clips[i]="err"; u.inflight--; pump(); fetchNext(); }); } };
+  fetchNext();
+}
+function tone(f){ try{const a=new (window.AudioContext||window.webkitAudioContext)();const o=a.createOscillator(),g=a.createGain();o.type="sine";o.frequency.value=f;o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(0.0001,a.currentTime);g.gain.exponentialRampToValueAtTime(0.2,a.currentTime+0.02);g.gain.exponentialRampToValueAtTime(0.0001,a.currentTime+0.3);o.start();o.stop(a.currentTime+0.32);}catch(e){} }
+function ariseDir(msg){ return /BULL/i.test(msg)?"bullish":/BEAR/i.test(msg)?"bearish":""; }
+function fireQualifyAlert(e){
+  chime(); notify("🟢 ROLLING FIB — WINDOW QUALIFIED",e.i+" · "+e.msg);
+  document.title="🟢 QUALIFIED — "+e.i;
+  aries(e.i+" window qualified, "+ariseDir(e.msg)+". Trade window is open. Watch the twenty-five and forty-five for your entry.",true);
+  const h=document.querySelector(".hud"); if(h){h.style.boxShadow="0 0 0 2px var(--color-positive)";setTimeout(()=>h.style.boxShadow="",4000);}
+}
+function firePrearmAlert(e){
+  tone(660); notify("🟡 ROLLING FIB — PRE-ARM",e.i+" · "+e.msg);
+  aries(e.i+" hour is arming. Be at the screen for the top of the hour.",true);
+  const h=document.querySelector(".hud"); if(h){h.style.boxShadow="0 0 0 2px var(--color-warning)";setTimeout(()=>h.style.boxShadow="",3000);}
+}
+// LIVE BUY/SELL — the fade fired: distinct two-tone chime, a prominent signal toast, HUD flash, and Aries call-out.
+function fadeChime(up){ try{ tone(up?520:640); setTimeout(()=>tone(up?820:400),150); }catch(e){} }
+function showSignal(long,px,aplus,inst,label,body){
+  label=label||'fade';
+  body=body||('swept the '+(long?"low":"high")+' &amp; rejected — take the reversion, stop past the sweep');
+  let el=document.getElementById("sigtoast");
+  if(!el){ el=document.createElement("div"); el.id="sigtoast"; el.onclick=()=>el.classList.remove("show"); document.body.appendChild(el); }
+  el.className="sigtoast "+(long?"buy":"sell")+(aplus?" aplus":"")+" show";
+  el.innerHTML='<span class="sig-dir">'+(long?"▲ BUY":"▼ SELL")+'</span><span class="sig-body"><b>'+inst+' '+label+(aplus?' A+':'')+'</b>'+(px?' @ '+px:'')+' · '+body+'</span><span class="sig-x">✕</span>';
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove("show"),10000);
+}
+function fireFadeAlert(e){
+  const long=/^LONG/.test(e.msg||""), aplus=/A\+/.test(e.msg||""); const m=/\(([\d.]+)\)/.exec(e.msg||""); const px=m?m[1]:"";
+  fadeChime(long); notify((long?"🟢 BUY":"🔴 SELL")+" — Rolling Fib fade"+(aplus?" A+":""), e.i+" · "+e.msg);
+  document.title=(long?"🟢 BUY":"🔴 SELL")+" — "+e.i; setTimeout(()=>document.title="GR · Rolling Fib",6000);
+  showSignal(long,px,aplus,e.i);
+  aries((long?"Buy signal":"Sell signal")+", "+e.i+". Fade "+(aplus?"A plus ":"")+"off the "+(long?"low":"high")+(px?" at "+px:"")+". Take the reversion, stop just past the sweep.",true);   // force: alerts speak whenever 🔔 is on, even if the 🔊 conversational toggle is off
+  const h=document.querySelector(".hud"); if(h){h.style.boxShadow="0 0 0 2px "+(long?"var(--color-positive)":"var(--color-negative)");setTimeout(()=>h.style.boxShadow="",4000);}
+}
+// LIVE continuation entry — the :25/:45 with-trend pullback held the 50 (the +5.4pt/trade workhorse). Same rails as the fade.
+function fireContinuationAlert(e){
+  const long=/^LONG/.test(e.msg||"");
+  const em=/@ ([\d.]+)/.exec(e.msg||""), sm=/stop ([\d.]+)/.exec(e.msg||""), tm=/target ([\d.]+)/.exec(e.msg||""), wm=/at (:\d\d)/.exec(e.msg||"");
+  const entry=em?em[1]:"", stop=sm?sm[1]:"", tgt=tm?tm[1]:"", win=wm?wm[1]:"";
+  fadeChime(long); notify((long?"🟢 BUY":"🔴 SELL")+" — Rolling Fib continuation", e.i+" · "+e.msg);
+  document.title=(long?"🟢 BUY":"🔴 SELL")+" cont — "+e.i; setTimeout(()=>document.title="GR · Rolling Fib",6000);
+  showSignal(long,entry,false,e.i,'continuation','held the 50'+(win?' at '+win:'')+' — resting limit at the 55'+(entry?' @ '+entry:'')+' (don’t chase)'+(stop?', stop '+stop:'')+(tgt?', target '+tgt:''));
+  aries((long?"Buy, continuation":"Sell, continuation")+", "+e.i+". Pullback held the fifty"+(win?" at "+win.replace(":"," "):"")+". Your fifty-five limit is valid"+(entry?" at "+entry:"")+". Don’t chase"+(stop?", stop "+stop:"")+(tgt?", target "+tgt:"")+".",true);
+  const h=document.querySelector(".hud"); if(h){h.style.boxShadow="0 0 0 2px "+(long?"var(--color-positive)":"var(--color-negative)");setTimeout(()=>h.style.boxShadow="",4000);}
+}
+/* HUD count-up (400ms ease-out) */
+const shown={};
+function countUp(el,target,fmt){
+  const from=shown[el.id]??target;shown[el.id]=target;
+  if(from===target||matchMedia("(prefers-reduced-motion: reduce)").matches){el.textContent=fmt(target);return;}
+  const t0=performance.now();
+  (function step(t){const p=Math.min(1,(t-t0)/400),e=1-Math.pow(1-p,3);
+    el.textContent=fmt(from+(target-from)*e);if(p<1)requestAnimationFrame(step);})(t0);
+}
+function setChip(id,val,state,fmtNum){
+  const c=$(id);c.classList.remove("loading","alert","inactive");
+  if(state)c.classList.add(state);
+  if(state==="alert"&&!c.querySelector(".dot")){const d=document.createElement("span");d.className="dot";c.prepend(d);}
+  if(state!=="alert"){const d=c.querySelector(".dot");if(d)d.remove();}
+  const v=c.querySelector(".val");
+  if(typeof val==="number"&&fmtNum)countUp(v,val,fmtNum);else v.textContent=val;
+}
+// live-grid flag: prefer the indicator's explicit gridActive; if absent (state file from an
+// older indicator build), fall back to "levels present" so nothing dims until the recompile lands.
+function gact(s){ return s.gridActive===undefined ? !!s.levels : !!s.gridActive; }
+// arming = the running hour has cleared the height gate but hasn't opened a live grid yet.
+// keys off gridActive (not levels) so a *closed* last-window grid on screen never masks the next arm.
+function isArming(s){ return !gact(s) && s.hrGate>0 && (s.hrRange||0)/s.hrGate>=0.8; }
+function ladder(s){
+  const arm=isArming(s), live=gact(s);
+  // measuring / arming gauge — shown when there's no live grid AND either we're arming,
+  // or no prior grid exists to hold on screen
+  if(!live && (arm || !s.levels)){
+    const gate=s.hrGate||0, dev=s.hrRange||0, pc=gate>0?Math.min(100,dev/gate*100):0;
+    return '<div class="noladder"><div class="measure">'
+      +'<div class="mlabel'+(arm?" arm":"")+'">'+(arm?"⚡ ARMING · "+(s.dir===-1?"BEAR":s.dir===1?"BULL":"")+" qualifying at :00":"measuring hourly candle")+'</div>'
+      +(gate>0?'<div class="mbig '+(arm?"arm":"")+'">'+dev.toFixed(2)+'<span class="munit"> / '+gate.toFixed(0)+' pts</span></div>'
+        +'<div class="mbar"><div class="mfill'+(arm?" arm":"")+'" style="width:'+pc.toFixed(0)+'%"></div></div>':"")
+      +'</div></div>';
+  }
+  // grid — live (gridActive) or the last window held dimmed on screen between windows
+  const stale=!live, dirc=s.dir===-1?"bear":s.dir===1?"bull":"";
+  const lv=s.levels,md=s.mids||[],all=lv.concat(md,[s.price],(!stale&&s._entry)?[s._entry]:[]);
+  const lo=Math.min(...all),hi=Math.max(...all),pad=(hi-lo)*0.06||1;
+  const yn=p=>(hi+pad-p)/(hi-lo+2*pad)*100;
+  const y=p=>yn(p).toFixed(2)+"%";
+  let g=stale?'<div class="gridtag">last window · closed</div>':"";
+  // excursion shade — from the confirm pivot to live price, tinted by direction (see the move at a glance)
+  if(!stale&&s.pivot>=0&&md[s.pivot]!==undefined&&dirc){
+    const a=yn(md[s.pivot]),b=yn(s.price);
+    g+='<div class="tzone '+dirc+'" style="top:'+Math.min(a,b).toFixed(2)+'%;height:'+Math.abs(a-b).toFixed(2)+'%"></div>';
+  }
+  // midlines — dim, except the confirm pivot which is highlighted + labelled
+  md.forEach((p,i)=>{const piv=!stale&&i===s.pivot;
+    g+='<div class="lv mid'+(piv?' pivot':'')+'" style="top:'+y(p)+'">'+(piv?'<span class="pivtag">◆ PIVOT '+p.toFixed(2)+'</span>':'')+'</div>';});
+  // fib levels — ratio label on the left, price on the right (0 & 100 major, 161.8 extension)
+  lv.forEach((p,i)=>{const cls=i===7?"lv ext":(i===0||i===6)?"lv major":"lv";
+    g+='<div class="'+cls+'" style="top:'+y(p)+'"><span class="rtag">'+NAME[i]+'</span><span class="tag">'+p.toFixed(2)+'</span></div>';});
+  // wrap only the GRID in the dim group; the live-price cursor lives outside it so it stays bright
+  const cursor='<div class="cursor '+dirc+'" style="top:'+y(s.price)+'"><span class="tag">'+s.price.toFixed(2)+'</span></div>';
+  // your live entry + the projected 1R stop/target envelope, marked right on the structure
+  let entry="";
+  if(!stale&&s._entry&&s._side){
+    const R=POS_R_PTS, short=s._side==="SHORT";
+    const stop = short ? s._entry+R : s._entry-R;   // adverse
+    const tgt  = short ? s._entry-R : s._entry+R;   // 1R favorable
+    entry='<div class="envline stop" style="top:'+y(stop)+'"><span class="envtag stop">STOP '+stop.toFixed(2)+'</span></div>'
+      +'<div class="envline tgt" style="top:'+y(tgt)+'"><span class="envtag tgt">TGT '+tgt.toFixed(2)+'</span></div>'
+      +'<div class="entryline '+(short?"short":"long")+'" style="top:'+y(s._entry)+'"><span class="entag">IN '+s._entry.toFixed(2)+'</span></div>';
+  }
+  return (stale?'<div class="laddergrid stale">'+g+'</div>':g)+cursor+entry;
+}
+const BADGE={CONFIRMED:"pos","IN TRADE":"pos",ACTIVE:"warn",ARMING:"warn",ARMED:"warn",PROTECT:"warn",DEAD:"neg",HALT:"neg",HOLDING:"info"};
+function card(s,stale,i){
+  const el=Math.min(60,s.elapsed||0), arm=isArming(s), inWin=gact(s), lastGrid=!inWin&&!!s.levels&&!arm;
+  const status=arm?"ARMING":s.status;
+  const chips=inWin?[
+    '<span class="mchip">grid <b>'+(s.dir===1?"BULL":s.dir===-1?"BEAR":"—")+'</b></span>',
+    '<span class="mchip">pivot <b>'+(s.pivot>=0?NAME[s.pivot]+"/"+NAME[s.pivot+1]:"—")+'</b></span>',
+    (s.status!=="PERSIST"?'<span class="mchip">window <b>'+el.toFixed(0)+'/60m</b></span>':'')
+  ].join(""):lastGrid?[
+    '<span class="mchip">last grid <b>'+(s.dir===1?"BULL":s.dir===-1?"BEAR":"—")+'</b></span>',
+    '<span class="mchip">closed <b>'+(s.lastQual||"—")+'</b></span>'
+  ].join(""):'<span class="mchip">last qualified <b>'+(s.lastQual||"—")+'</b></span>';
+  // ── structure/persistence badges (only render when GridPersistence is emitting the fields) ──
+  const lstr=s.lastStructure||"", rt=s.reversalType||"";
+  const structChips=
+    (s.status==="PERSIST"?'<span class="mchip roll">◱ rolling · PERSIST'+(s.gridAgeHrs?' '+(+s.gridAgeHrs).toFixed(1)+'h':'')+'</span>':'')
+    +(rt?'<span class="mchip '+(rt==="REVERSAL"?"rev":rt==="CONTINUATION"?"cont":"")+'">'+rt.toLowerCase()+'</span>':'')
+    +(lstr?'<span class="mchip '+(/CHoCH/.test(lstr)?"choch":"bos")+'">'+(/CHoCH/.test(lstr)?"CHoCH ↺":"BOS →")+' '+(/up/.test(lstr)?"▲":"▼")+'</span>':'')
+    +(s.fadeArmed?'<span class="mchip fade">◎ fade armed</span>':'');
+  return '<div class="hcard hero'+(stale?" stale":"")+(arm?" arming":"")+'">'
+    +'<div class="chead"><span class="inst">'+s.instrument+'</span><span class="px">'+s.price.toFixed(2)+'</span>'
+    +'<span class="badge '+(BADGE[status]||"")+'">'+status+(stale?" · STALE":"")+'</span></div>'
+    +'<div class="ladder">'+ladder(s)+'</div>'
+    +(inWin&&s.status!=="PERSIST"?'<div class="winbar"><div class="winfill" style="width:'+(el/60*100)+'%"></div>'
+      +'<div class="wintick" style="left:'+(40/60*100)+'%"></div><div class="wintick" style="left:'+(45/60*100)+'%"></div>'
+      +'<span class="winlabel">'+el.toFixed(0)+" / 60 min · :25 · :45"+'</span></div>':"")
+    +'<div class="chips">'+chips+structChips+'</div></div>';
+}
+const STMAP={QUALIFIED:"ACTIVE",CONFIRM:"CONFIRMED",ENTRY:"IN TRADE",FADE:"IN TRADE",T1:"IN TRADE",
+  ACCEL_ARMED:"ARMED",WINDOW:"EXPIRED",INVALIDATED:"DEAD",BLOCK:"IDLE",HALT:"HALT",CHECKPOINT:"PROTECT"};
+function tvCard(inst,evts,i){
+  const last=evts[0],st=STMAP[last.type]||"LIVE";
+  const today=localToday();
+  const td=evts.filter(e=>e.t.startsWith(today));
+  const n=t=>td.filter(e=>e.type===t).length;
+  return '<div class="hcard" style="animation-delay:'+(i*50)+'ms"><div class="chead"><span class="inst">'+inst+'</span>'
+    +'<span class="badge '+(BADGE[st]||"")+'">'+st+'</span></div>'
+    +'<div class="meta" style="margin:0 0 var(--space-3)">TradingView webhook feed · last '+last.t+'</div>'
+    +'<div class="chips">'
+    +'<span class="mchip">qual <b>'+n("QUALIFIED")+'</b></span>'
+    +'<span class="mchip">confirms <b>'+n("CONFIRM")+'</b></span>'
+    +'<span class="mchip pos">entries <b>'+(n("ENTRY")+n("FADE"))+'</b></span>'
+    +'<span class="mchip'+(n("BLOCK")>4?" warn":"")+'">blocked <b>'+n("BLOCK")+'</b></span>'
+    +(n("HALT")?'<span class="mchip neg">HALT</span>':"")
+    +'</div><div class="meta">'+last.type+": "+last.msg+'</div></div>';
+}
+function spark(curve){
+  if(!curve||curve.length<2)return "";
+  const w=300,h=60,lo=Math.min(...curve),hi=Math.max(...curve),sp=(hi-lo)||1;
+  const pts=curve.map((v,i)=>((i/(curve.length-1))*w).toFixed(1)+","+((h-4)-(v-lo)/sp*(h-8)).toFixed(1)).join(" ");
+  const up=curve[curve.length-1]>=0;
+  return '<svg class="spark" viewBox="0 0 '+w+" "+h+'">'
+    +'<polyline points="0,'+((h-4)-(0-lo)/sp*(h-8)).toFixed(1)+" "+w+","+((h-4)-(0-lo)/sp*(h-8)).toFixed(1)+'" stroke="var(--color-border-default)" stroke-width="1" fill="none"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="'+(up?"var(--color-positive)":"var(--color-negative)")+'" stroke-width="1.5"/></svg>';
+}
+let _lastCoach="",_lastWin="",_lastMt="",_scWins=[];
+// derived forward-adjustment for a window (server 'note' overrides this when present)
+function scPrep(w){const d=(w.debrief||"").toLowerCase();
+  if(/too deep/.test(d))return"Confirmed too deep to trade — next window, wait for an early-pivot confirm or stand down.";
+  if(/target|reached the 100|reached the 161/.test(d))return"Clean run to target — the setup is working; take it again when it re-qualifies.";
+  if(/partial/.test(d))return"Reached partial — you got the first leg. Trail sooner or scale at the midline next time.";
+  if(/no confirm|no trade|stood down/.test(d))return"No confirm — correctly stood down. Patience paid.";
+  if(/invalidated|stopped|broke/.test(d))return"Invalidated — thesis broke. Mark the level that failed and re-assess.";
+  return"Logged — review against the next window.";}
+// pre-window READ (the forecast Aries gives going in) + the PLAN
+function windowRead(w){const opp=w.dir==="BEAR"?"short":"long";
+  return "A "+(+w.size).toFixed(1)+"pt "+w.dir+" qualifier — the expansion leg that maps the range. Read it as a mean-reversion setup: "
+    +"price reaches for the 100 / extension, then a manipulation (a sweep-and-reject at the extreme) sets up the "+opp
+    +" fade back toward the 50. Trade the retest of a midline, not the first touch.";}
+function windowPlan(w){
+  if(!w.levels)return "Structure forming — the plan sets once the grid confirms.";
+  const z=(+w.levels[0]).toFixed(2),hun=(+w.levels[6]).toFixed(2),ext=(+w.levels[7]).toFixed(2);
+  const piv=(w.pivot>=0&&w.mids)?(+w.mids[w.pivot]).toFixed(2):"a midline";
+  return "Entry — retest of the confirm pivot ("+piv+"). Invalidation — a decisive close beyond the 0 ("+z+"). Target — the 100 into the extension ("+hun+" → "+ext+").";}
+// POST-window analytics from the real bars: range, the move it offered, the best entry + why, signal accuracy
+function windowAnalytics(w){
+  const bars=_lastChartBars||[]; const wh=+w.t.slice(11,13);
+  const seg=bars.filter(b=>b.t.slice(0,10)===w.day && +b.t.slice(11,13)===wh);
+  if(seg.length<2)return null;
+  const hi=Math.max(...seg.map(b=>+b.h)),lo=Math.min(...seg.map(b=>+b.l)),range=hi-lo,bear=w.dir==="BEAR";
+  let best=seg[0],bestPx=bear?-1e9:1e9;
+  seg.forEach(b=>{const v=bear?+b.h:+b.l; if(bear?v>bestPx:v<bestPx){bestPx=v;best=b;}});
+  const after=seg.slice(seg.indexOf(best));
+  const tgt=bear?Math.min(...after.map(b=>+b.l)):Math.max(...after.map(b=>+b.h));
+  const potential=Math.abs(bestPx-tgt),potUsd=Math.round(potential*5);
+  let why="the window extreme";
+  if(w.levels){const nr=w.levels.map((p,j)=>({j,d:Math.abs(p-bestPx)})).sort((a,b)=>a.d-b.d)[0];
+    if(nr.d<=2.5)why="the "+NAME[nr.j]+" ("+(+w.levels[nr.j]).toFixed(2)+") — the "+(nr.j>=6?"extension / exhaustion":nr.j===0?"origin":"structure")+" zone";}
+  return {range,bestPx,bestT:best.t.slice(11),potential,potUsd,why,accurate:potential>=Math.max(4,range*0.5)};
+}
+// ── VISUALS ── the window's price path, the session equity curve, the offered-vs-captured bars
+function windowSpark(w){
+  const bars=_lastChartBars||[], wh=+w.t.slice(11,13);
+  const seg=bars.filter(b=>b.t.slice(0,10)===w.day && +b.t.slice(11,13)===wh);
+  if(seg.length<2)return "";
+  const W=480,H=56,a=windowAnalytics(w);
+  let lo=Math.min(...seg.map(b=>+b.l)),hi=Math.max(...seg.map(b=>+b.h));
+  const piv=(w.mids&&w.pivot>=0)?+w.mids[w.pivot]:null, hun=w.levels?+w.levels[6]:null;
+  [piv,hun].forEach(r=>{if(r!=null){lo=Math.min(lo,r);hi=Math.max(hi,r);}});
+  (w.trades||[]).forEach(t=>{ if(t.entryPx!=null){lo=Math.min(lo,t.entryPx);hi=Math.max(hi,t.entryPx);} if(t.exitPx!=null){lo=Math.min(lo,t.exitPx);hi=Math.max(hi,t.exitPx);} });
+  const pad=(hi-lo)*0.08||1; lo-=pad;hi+=pad;
+  const X=i=>(i/(seg.length-1))*W, Y=p=>H-((p-lo)/(hi-lo))*H, Xm=m=>(Math.max(0,Math.min(60,m))/60)*W;
+  const bear=w.dir==="BEAR", col=bear?"var(--color-negative)":"var(--color-positive)";
+  const line=seg.map((b,i)=>X(i).toFixed(1)+","+Y(+b.c).toFixed(1)).join(" ");
+  let mk="";
+  if(a){const bi=seg.findIndex(b=>b.t.slice(11)===a.bestT); if(bi>=0)mk='<circle cx="'+X(bi).toFixed(1)+'" cy="'+Y(a.bestPx).toFixed(1)+'" r="3" fill="var(--color-warning)" stroke="var(--color-bg-base)" stroke-width="1"/>';}
+  // plot YOUR actual entries/exits at their time+price, colored by the trade's result
+  let tr="";
+  (w.trades||[]).forEach(t=>{ if(t.entryPx==null||t.entMin==null)return;
+    const ex=Xm(t.entMin), ey=Y(t.entryPx), tc=t.pnl>=0?"var(--color-positive)":"var(--color-negative)";
+    if(t.exitPx!=null&&t.exMin!=null){ const xx=Xm(t.exMin), xy=Y(t.exitPx);
+      tr+='<line x1="'+ex.toFixed(1)+'" y1="'+ey.toFixed(1)+'" x2="'+xx.toFixed(1)+'" y2="'+xy.toFixed(1)+'" stroke="'+tc+'" stroke-width="1" stroke-dasharray="3 2" opacity=".85"/>'
+        +'<circle cx="'+xx.toFixed(1)+'" cy="'+xy.toFixed(1)+'" r="2.6" fill="none" stroke="'+tc+'" stroke-width="1.3"/>'; }
+    tr+='<circle cx="'+ex.toFixed(1)+'" cy="'+ey.toFixed(1)+'" r="3.2" fill="'+tc+'" stroke="var(--color-bg-base)" stroke-width="1"/>'; });
+  const pivln=piv!=null?'<line x1="0" y1="'+Y(piv).toFixed(1)+'" x2="'+W+'" y2="'+Y(piv).toFixed(1)+'" stroke="var(--color-accent)" stroke-width=".7" stroke-dasharray="3 2" opacity=".7"/>':"";
+  return '<svg class="wspark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+    +'<defs><linearGradient id="wsg'+w.hour+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+col+'" stop-opacity=".26"/><stop offset="1" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs>'
+    +pivln+'<polygon points="0,'+H+' '+line+' '+W+','+H+'" fill="url(#wsg'+w.hour+')"/>'
+    +'<polyline points="'+line+'" fill="none" stroke="'+col+'" stroke-width="1.4"/>'+mk+tr+'</svg>';
+}
+function equitySpark(curve){
+  if(!curve||curve.length<2)return "";
+  const W=240,H=48,lo=Math.min(0,...curve),hi=Math.max(0,...curve),sp=(hi-lo)||1;
+  const X=i=>(i/(curve.length-1))*W, Y=v=>H-2-((v-lo)/sp)*(H-4);
+  const pts=curve.map((v,i)=>X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+  const up=curve[curve.length-1]>=0, col=up?"var(--color-positive)":"var(--color-negative)", z=Y(0).toFixed(1);
+  return '<svg class="eqspark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none">'
+    +'<line x1="0" y1="'+z+'" x2="'+W+'" y2="'+z+'" stroke="var(--color-border-default)" stroke-width=".7"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5"/></svg>';
+}
+function offerBars(mo){
+  const max=Math.max(1,mo.offered,Math.abs(mo.captured));
+  const bar=(k,v,cls,label)=>'<div class="obar"><span class="obar-k">'+k+'</span><div class="obar-track"><div class="obar-fill '+cls+'" style="width:'+(Math.abs(v)/max*100).toFixed(0)+'%"></div></div><b class="'+(v>=0?"":"acc-no")+'">'+label+'</b></div>';
+  return '<div class="obars">'+bar("offered",mo.offered,"off","$"+mo.offered)+bar("captured",mo.captured,mo.captured>=0?"cap":"neg",rcMoney(mo.captured))+'</div>';
+}
+const acctShort=a=>!a?"":/^APEX/i.test(a)?"APEX…"+a.slice(-4):a;
+function tradeRow(t){
+  return '<div class="scm-trade"><span class="tside '+t.side+'">'+t.side+'</span>'
+    +'<span class="ttime">'+(t.entT||"")+(t.exT?' → '+t.exT:'')+'</span>'
+    +(t.acct?'<span class="tacct">'+acctShort(t.acct)+'</span>':'')
+    +'<span class="tpnl '+((t.pnl||0)>=0?"pos":"neg")+'">'+((t.pnl||0)>=0?"+$":"-$")+Math.abs(t.pnl||0).toFixed(0)+'</span></div>';
+}
+// session opportunity gap — what the windows OFFERED vs what you CAPTURED
+function marketOffering(day){
+  let offered=0,captured=0,traded=0,avail=0;
+  _scWins.forEach(w=>{ if(day&&w.day!==day)return; const a=windowAnalytics(w); if(a){avail++;offered+=a.potUsd;}
+    if(w.tradePnl!==undefined){traded++;captured+=w.tradePnl;} });
+  return {offered:Math.round(offered),captured:Math.round(captured),traded,avail};
+}
+function sessionKPIs(rc){
+  if(!rc)return '<div class="scm-body panel-note" style="color:var(--color-text-muted)">Load your NinjaTrader trade log into backtests\\ and this session\'s KPIs light up here.</div>';
+  return '<div class="rc-mini">'
+    +'<div class="mini"><div class="mini-v '+(rc.net>=0?"pos":"neg")+'">'+rcMoney(rc.net)+'</div><div class="mini-k">net</div></div>'
+    +'<div class="mini"><div class="mini-v">'+rc.winPct+'%</div><div class="mini-k">win</div></div>'
+    +'<div class="mini"><div class="mini-v">'+rc.pf.toFixed(2)+'</div><div class="mini-k">PF</div></div>'
+    +'<div class="mini"><div class="mini-v">'+rc.n+'</div><div class="mini-k">trades</div></div></div>'
+    +(rc.curve&&rc.curve.length>1?'<div class="panel-viz">'+equitySpark(rc.curve)+'<span class="viz-cap">session equity curve</span></div>':'')
+    +'<div class="scm-body panel-note">Given back <b class="acc-no">$'+rc.gaveBack.cost+'</b> · left on table <b class="acc-no">$'+rc.leftOnTable+'</b> · '+rc.exits.manual+'/'+rc.n+' exits hand-managed.</div>';
+}
+function offeringHTML(mo){ const left=mo.avail-mo.traded;
+  return '<div class="rc-mini">'
+    +'<div class="mini"><div class="mini-v">$'+mo.offered+'</div><div class="mini-k">offered /ct</div></div>'
+    +'<div class="mini"><div class="mini-v '+(mo.captured>=0?"pos":"neg")+'">'+rcMoney(mo.captured)+'</div><div class="mini-k">captured</div></div>'
+    +'<div class="mini"><div class="mini-v">'+mo.traded+'/'+mo.avail+'</div><div class="mini-k">windows</div></div></div>'
+    +'<div class="panel-viz">'+offerBars(mo)+'</div>'
+    +'<div class="scm-body panel-note">The windows offered ~<b>$'+mo.offered+'/contract</b>; you captured <b class="'+(mo.captured>=0?"acc-yes":"acc-no")+'">'+rcMoney(mo.captured)+'</b>. '
+    +(left>0?'<b class="acc-no">'+left+' window'+(left>1?"s":"")+' left untraded</b> — study the misses.':'You were in the setups today.')+'</div>';
+}
+// ── WINDOW TRI-PANEL SCORECARD — the window (left) · session KPIs / offering gap / optimization (right) ──
+function openScard(i){
+  const w=_scWins[i]; if(!w)return;
+  const dc=w.dir==="BEAR"?"bear":w.dir==="BULL"?"bull":"";
+  const struct=(w.debrief||"").replace(/^[A-Z]+ [\d.]+pt @\d+:00 · /,"");
+  const a=windowAnalytics(w), rc=_reportCard&&_reportCard.perDay&&_reportCard.perDay[w.day], mo=marketOffering(w.day), wsp=windowSpark(w);
+  let L='<div class="scm-lbl">The read · going in</div><div class="scm-body">'+linkRefs(windowRead(w))+'</div>'
+   +'<div class="scm-lbl" style="margin-top:var(--space-4)">The plan</div><div class="scm-body">'+linkRefs(windowPlan(w))+'</div>';
+  if(w.levels&&w.levels.length)
+    L+='<div class="scm-lbl" style="margin-top:var(--space-4)">The grid</div><div class="scm-levels">'
+      +w.levels.map((p,j)=>'<span class="scm-lv">'+NAME[j]+' '+(+p).toFixed(2)+'</span>').join("")
+      +(w.pivot>=0&&w.mids?'<span class="scm-lv piv">◆ pivot '+(+w.mids[w.pivot]).toFixed(2)+'</span>':'')+'</div>';
+  L+='<div class="scm-lbl" style="margin-top:var(--space-4)">What happened</div><div class="scm-body">'+linkRefs(struct)+'</div>';
+  if(wsp) L+='<div class="panel-viz">'+wsp+'<span class="viz-cap"><span style="color:var(--color-accent)">◆ pivot</span> · <span style="color:var(--color-warning)">● best entry</span> · ● your entry ○ exit · dashed = your trade</span></div>';
+  // structure & manipulation (persistence layer) — the fades off the extreme + how the grid died
+  if((w.fades&&w.fades.length)||(w.structures&&w.structures.length))
+    L+='<div class="scm-lbl" style="margin-top:var(--space-4)">Structure · manipulation</div>'
+      +((w.structures||[]).map(x=>'<div class="fadeitem '+(x.kind==="CHoCH"?"choch":"bos")+'">'+(x.kind==="CHoCH"?"↺ ":"→ ")+x.msg+' <span class="fadet">'+x.t.slice(11)+'</span></div>').join(""))
+      +((w.fades||[]).map(f=>'<div class="fadeitem '+(f.side==="long"?"long":"short")+'">'+(f.aplus?"★ ":"◎ ")+f.msg.replace(/^(LONG|SHORT) fade — /,(f.side==="long"?"LONG · ":"SHORT · "))+' <span class="fadet">'+f.t.slice(11)+'</span></div>').join(""))
+      +(w.invalidReason?'<div class="scm-body" style="color:var(--color-text-muted);margin-top:var(--space-2)">Grid invalidated — '+w.invalidReason+(w.invalidatedAt?' at '+w.invalidatedAt.slice(11)+' ET':'')+'.</div>':'');
+  if(a) L+='<div class="scm-lbl" style="margin-top:var(--space-4)">What the window generated</div>'
+      +'<div class="scm-stats"><div class="stat"><div class="stat-v">'+a.range.toFixed(1)+'</div><div class="stat-k">pts traveled</div></div>'
+      +'<div class="stat"><div class="stat-v">'+a.potential.toFixed(1)+'</div><div class="stat-k">pts offered</div></div>'
+      +'<div class="stat"><div class="stat-v pos">$'+a.potUsd+'</div><div class="stat-k">/ contract</div></div></div>'
+      +'<div class="scm-body" style="margin-top:var(--space-2)">Best entry <b>'+a.bestPx.toFixed(2)+'</b> at <b>'+a.bestT+' ET</b> — '+a.why+'. <span class="'+(a.accurate?"acc-yes":"acc-no")+'">Signal '+(a.accurate?"accurate.":"weak.")+'</span></div>';
+  L+='<div class="scm-lbl" style="margin-top:var(--space-4)">Your trades'+(w.tradePnl!==undefined?' · net <span class="'+(w.tradePnl>=0?"acc-yes":"acc-no")+'">'+rcMoney(w.tradePnl)+'</span>':'')+'</div>';
+  if(w.trades&&w.trades.length) L+=w.trades.map(tradeRow).join("");
+  else L+='<div class="scm-body" style="color:var(--color-text-muted);">'+(w.tradesNote||"No trades taken this window.")+(a?' The window still offered '+a.potential.toFixed(1)+'pt — study the miss.':'')+'</div>';
+  const R='<div class="scm-panel"><div class="scm-lbl">Trading performance · this session</div>'+sessionKPIs(rc)+'</div>'
+   +'<div class="scm-panel"><div class="scm-lbl">Trades vs market offering</div>'+offeringHTML(mo)+'</div>'
+   +'<div class="scm-panel accent"><div class="scm-lbl">▸ Optimization · next window</div><div class="scm-body panel-note" style="color:var(--color-text-primary)">'+linkRefs(w.note||scPrep(w))+'</div></div>';
+  const h='<button class="scm-close" title="Close (Esc)">✕</button>'
+   +'<div class="scm-head"><span class="scm-grade '+w.grade+'">'+w.grade+'</span>'
+   +'<div><div class="scm-h1">'+w.hour+':00 Window</div>'
+   +'<div class="scm-sub">'+w.t.slice(11)+' ET · '+w.dir+' '+(+w.size).toFixed(1)+'pt qualifier'+(w.reversalType?' · <span class="rtchip '+(w.reversalType==="REVERSAL"?"rev":w.reversalType==="CONTINUATION"?"cont":"")+'">'+w.reversalType+'</span>':'')+'</div></div></div>'
+   +'<div class="scm-tri"><div class="scm-win">'+L+'</div><div class="scm-side">'+R+'</div></div>';
+  const m=$("scmodal"); m.className="scmodal tri "+dc; m.innerHTML=h; m.scrollTop=0; $("scback").hidden=false;
+  m.querySelector(".scm-close").onclick=closeScard;
+}
+function closeScard(){ $("scback").hidden=true; }
+document.addEventListener("click",e=>{ if(e.target.closest&&e.target.closest(".vref"))return; const c=e.target.closest&&e.target.closest("#screl .scard"); if(c&&c.dataset.i!==undefined)openScard(+c.dataset.i); });
+addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("scback").hidden)closeScard(); });
+$("scback").addEventListener("click",e=>{ if(e.target===$("scback"))closeScard(); });
+
+/* ═══ TRADING VAULT — curated reference library; each framework has bespoke cover art ═══ */
+const GOLD="#E8CB6E",TEAL="#00D4AA",VIOLET="#9B6DFF";
+const VAULT=[
+ {id:"wyckoff",cat:"FOUNDATION",sur:"Wyckoff",mono:"RW",era:"Richard D. Wyckoff · 1930s",accent:GOLD,
+  motif:'<line x1="0" y1="8" x2="120" y2="8"/><line x1="0" y1="38" x2="120" y2="38"/><path d="M0,22 L34,22 L47,50 L60,24 L120,20"/>',
+  tag:"The original map of accumulation, distribution, and the spring.",
+  blurb:"The foundational framework for how large operators build and unload positions. His spring (a dip below support that traps sellers, then reverses) and upthrust (the same above resistance) ARE your fade off the 100. Three laws: supply/demand, cause/effect, effort vs. result.",
+  gives:["Spring / upthrust = the manipulation phase","Accumulation → markup → distribution cycle","Effort vs. result (volume confirms the fade)"],
+  links:[["Richard Wyckoff — Wikipedia","https://en.wikipedia.org/wiki/Richard_Wyckoff"],["The Wyckoff Method — StockCharts","https://school.stockcharts.com/doku.php?id=market_analysis:the_wyckoff_method"]]},
+ {id:"profile",cat:"FOUNDATION",sur:"Market Profile",mono:"MP",era:"Steidlmayer & Dalton · 1980s",accent:TEAL,
+  motif:'<rect x="40" y="4" width="40" height="6"/><rect x="24" y="14" width="72" height="6"/><rect x="14" y="24" width="92" height="6"/><rect x="30" y="34" width="60" height="6"/><rect x="46" y="44" width="28" height="6"/>',
+  tag:"Balance vs. imbalance — the auction that defines expansion & consolidation.",
+  blurb:"Steidlmayer invented it at the CBOT; Jim Dalton (Mind Over Markets) is the modern master. Balance = consolidation, imbalance = expansion. Your 1H qualifying candle is essentially the Initial Balance that frames the auction; the 50 is equilibrium, above is premium, below is discount.",
+  gives:["Balance / imbalance = consolidation / expansion","Value area, premium & discount","Initial Balance ≈ the qualifying range"],
+  links:[["Market Profile — Wikipedia","https://en.wikipedia.org/wiki/Market_profile"],["Jim Dalton — Mind Over Markets","https://www.google.com/search?q=Jim+Dalton+Mind+Over+Markets"]]},
+ {id:"vsa",cat:"FOUNDATION",sur:"Vol. Spread Analysis",mono:"TW",era:"Tom Williams · 1990s",accent:TEAL,
+  motif:'<line x1="0" y1="50" x2="120" y2="50"/><rect x="6" y="30" width="12" height="20"/><rect x="26" y="14" width="12" height="36"/><rect x="46" y="38" width="12" height="12"/><rect x="66" y="8" width="12" height="42"/><rect x="86" y="34" width="12" height="16"/><rect x="106" y="26" width="12" height="24"/>',
+  tag:"Wyckoff's effort-vs-result, mechanized bar by bar.",
+  blurb:"Tom Williams, a former syndicate trader, turned effort-vs-result into readable signals: no-supply and no-demand bars, upthrust bars, stopping volume. This is how you confirm the manipulation — a wide bar into a level on high volume that closes back inside is the smart money showing its hand.",
+  gives:["No-supply / no-demand bars","Stopping volume at the extreme","Volume confirmation of the sweep"],
+  links:[["Tom Williams — Master the Markets","https://www.google.com/search?q=Tom+Williams+Master+the+Markets+VSA"]]},
+ {id:"smc",cat:"STRUCTURE",sur:"Smart Money Concepts",mono:"ICT",era:"M. Huddleston (ICT) · 2010s",accent:GOLD,
+  motif:'<path d="M0,40 L20,20 L34,30 L54,10 L74,26 L98,6"/><line x1="0" y1="20" x2="98" y2="20" stroke-dasharray="3 3" opacity=".6"/><circle cx="54" cy="10" r="3" fill="'+GOLD+'"/>',
+  tag:"The modern vocabulary: CHoCH, BOS, liquidity, AMD.",
+  blurb:"ICT popularized the language you and the market now speak — Change of Character (reversal), Break of Structure (continuation), liquidity sweeps, and the AMD / Power-of-Three cycle. Much of it repackages Wyckoff + order flow. Use its clear definitions; validate the edge, don't take the story on faith.",
+  gives:["CHoCH (reversal) vs BOS (continuation)","AMD / Power of Three cycle","Liquidity pools & the sweep"],
+  links:[["Smart Money Concepts — overview","https://www.google.com/search?q=ICT+smart+money+concepts+CHoCH+BOS+explained"]]},
+ {id:"lux",cat:"DETECTION",sur:"Algorithmic SMC",mono:"LX",era:"LuxAlgo · 2020s",accent:VIOLET,
+  motif:'<path d="M0,42 L22,18 L40,32 L60,8 L80,28 L104,10"/><circle cx="22" cy="18" r="3.5"/><circle cx="60" cy="8" r="3.5"/><circle cx="104" cy="10" r="3.5"/>',
+  tag:"The objective, swing-fractal definitions we code against.",
+  blurb:"The best-documented open reference for detecting structure programmatically: swing highs/lows via fractals, then BOS/CHoCH as objective break conditions. This is where our deterministic rules come from — so CHoCH/BOS are computed, never eyeballed.",
+  gives:["Swing detection via fractals","Objective BOS / CHoCH conditions","Order blocks & fair value gaps"],
+  links:[["LuxAlgo — Smart Money Concepts","https://www.luxalgo.com/"]]},
+ {id:"aronson",cat:"RIGOR",sur:"Evidence-Based TA",mono:"DA",era:"David Aronson · 2006",accent:TEAL,
+  motif:'<path d="M0,48 C30,48 38,6 60,6 C82,6 90,48 120,48"/><line x1="60" y1="6" x2="60" y2="48" stroke-dasharray="3 3" opacity=".5"/>',
+  tag:"Don't confuse a good story with a real edge.",
+  blurb:"The rigor layer. Aronson's thesis: most technical narratives fail once you test them honestly, and confirmation bias makes us see edges that aren't there. Every rule we add — CHoCH tag, grid persistence, the fade — gets an objective definition and a validation run before it's trusted.",
+  gives:["Operationalize before you trust","Guard against overfitting / bias","Backtest every rule for real edge"],
+  links:[["Evidence-Based Technical Analysis","https://www.google.com/search?q=David+Aronson+Evidence-Based+Technical+Analysis"]]},
+ {id:"chan",cat:"RIGOR",sur:"Algorithmic Trading",mono:"EC",era:"Ernest Chan · 2013",accent:GOLD,
+  motif:'<path d="M26,6 L8,28 L26,50"/><path d="M94,6 L112,28 L94,50"/><line x1="42" y1="52" x2="78" y2="4"/>',
+  tag:"Turning a hypothesis into a tested, sized system.",
+  blurb:"The practitioner's bridge from idea to executable strategy: hypothesis, backtest, statistical significance, risk sizing, and avoiding the traps (look-ahead bias, data snooping). This is how our rules become a system that's measured, not just believed.",
+  gives:["Hypothesis → backtest → significance","Position sizing & risk of ruin","Avoiding look-ahead / data snooping"],
+  links:[["Ernest Chan — epchan.com","https://www.epchan.com/"]]},
+ {id:"elliott",cat:"WAVES & FIB",sur:"Wave & Fibonacci",mono:"RE",era:"R.N. Elliott · 1930s",accent:VIOLET,
+  motif:'<path d="M0,46 L16,18 L28,30 L48,8 L62,22 L86,4 L104,20 L120,12"/>',
+  tag:"Why the fib grid works — impulse, correction, ratio.",
+  blurb:"Elliott's insight that markets move in repeating impulse/correction waves, measured by Fibonacci ratios, is the theoretical root of your grid itself. The 0.618–0.786 retrace (ICT's 'OTE') and the 1.618 extension are Elliott/fib in action.",
+  gives:["Impulse (5) / correction (3) structure","Fib retrace & extension targets","Why 0.618 / 1.618 matter"],
+  links:[["Elliott Wave Principle — Wikipedia","https://en.wikipedia.org/wiki/Elliott_wave_principle"],["Fibonacci Retracement — Wikipedia","https://en.wikipedia.org/wiki/Fibonacci_retracement"]]}
+];
+const VBYID={}; VAULT.forEach(e=>VBYID[e.id]=e);
+function vaultThumb(e){
+  return '<svg class="vthumb" viewBox="0 0 160 210" preserveAspectRatio="xMidYMid meet">'
+   +'<rect x="1" y="1" width="158" height="208" rx="9" fill="#0d1018" stroke="'+e.accent+'" stroke-opacity=".4"/>'
+   +'<rect x="12" y="0" width="136" height="3" fill="'+e.accent+'"/>'
+   +'<text x="14" y="24" class="vt-cat" fill="'+e.accent+'">'+e.cat+'</text>'
+   +'<text x="146" y="130" text-anchor="end" class="vt-mono" fill="'+e.accent+'" opacity=".13">'+e.mono+'</text>'
+   +'<g transform="translate(18,54)" stroke="'+e.accent+'" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".95">'+e.motif+'</g>'
+   +'<text x="14" y="180" class="vt-sur">'+e.sur+'</text>'
+   +'<text x="14" y="197" class="vt-era">'+e.era+'</text></svg>';
+}
+function openVault(){
+  const h='<button class="scm-close" title="Close (Esc)">✕</button>'
+   +'<div class="vault-head"><div class="scm-h1">The Trading Vault</div>'
+   +'<div class="scm-sub">The bodies of work Aries coaches from — curated, not collected</div></div>'
+   +'<div class="vault-grid">'+VAULT.map(e=>'<div class="vcard" data-v="'+e.id+'">'+vaultThumb(e)
+     +'<div class="vcard-tag">'+e.tag+'</div></div>').join("")+'</div>';
+  const m=$("vaultmodal"); m.className="vaultmodal"; m.innerHTML=h; m.scrollTop=0; $("vaultback").hidden=false;
+  m.querySelector(".scm-close").onclick=closeVault;
+}
+function openVaultEntry(id){
+  const e=VBYID[id]; if(!e){openVault();return;}
+  const h='<button class="scm-close" title="Back">✕</button>'
+   +'<div class="ventry"><div class="ventry-thumb">'+vaultThumb(e)+'</div>'
+   +'<div class="ventry-body"><div class="scm-sub" style="color:'+e.accent+'">'+e.cat+'</div>'
+   +'<div class="scm-h1">'+e.sur+'</div><div class="scm-sub">'+e.era+'</div>'
+   +'<div class="ventry-blurb">'+e.blurb+'</div>'
+   +'<div class="scm-lbl" style="margin-top:var(--space-4);color:'+e.accent+'">What it gives our system</div>'
+   +'<ul class="ventry-gives">'+e.gives.map(g=>'<li>'+g+'</li>').join("")+'</ul>'
+   +'<div class="scm-lbl" style="margin-top:var(--space-4);color:'+e.accent+'">Go deeper</div>'
+   +'<div class="ventry-links">'+e.links.map(l=>'<a href="'+l[1]+'" target="_blank" rel="noopener">'+l[0]+' ↗</a>').join("")+'</div>'
+   +'<button class="ventry-back">‹ back to the vault</button></div></div>';
+  const m=$("vaultmodal"); m.className="vaultmodal wide"; m.innerHTML=h; m.scrollTop=0; $("vaultback").hidden=false;
+  m.querySelector(".scm-close").onclick=closeVault;
+  m.querySelector(".ventry-back").onclick=openVault;
+}
+function closeVault(){ $("vaultback").hidden=true; }
+$("vaultNav").onclick=e=>{e.preventDefault();openVault();};
+
+// ═══ THE FILM ROOM — system edge · optimizer · you vs the system (instant replay for the desk) ═══
+let _filmData=null;
+function filmEdgeCard(name,sub,a,hero){const pn=v=>v>0?"pos":v<0?"neg":"";
+  return '<div class="film-ecard'+(hero?" hero":"")+'"><div class="film-elbl">'+name+'</div><div class="film-esub">'+sub+'</div>'
+    +'<div class="film-ebig '+pn(a.expR)+'">'+(a.expR>=0?"+":"")+a.expR+'<span>R</span></div><div class="film-eb2">expectancy / trade</div>'
+    +'<div class="film-erow"><span>Profit factor</span><b class="'+(a.pf>=1.5?"pos":a.pf>=1?"":"neg")+'">'+a.pf+'</b></div>'
+    +'<div class="film-erow"><span>Win rate</span><b>'+a.winPct+'%</b></div>'
+    +'<div class="film-erow"><span>Avg heat</span><b>'+(a.avgHeatR!==undefined?a.avgHeatR+"R":"—")+'</b></div>'
+    +'<div class="film-erow dim"><span>Sample</span><b>'+a.n+' trades</b></div></div>';}
+function filmVsCard(name,sub,a){const pn=v=>v>0?"pos":v<0?"neg":"";
+  return '<div class="film-vcard"><div class="film-elbl">'+name+'</div><div class="film-esub">'+sub+'</div>'
+    +'<div class="film-vrow"><span>Net</span><b class="'+pn(a.net)+'">'+(a.net>=0?"+$":"-$")+Math.abs(a.net)+'</b></div>'
+    +'<div class="film-vrow"><span>Profit factor</span><b class="'+(a.pf>=1.5?"pos":a.pf>=1?"":"neg")+'">'+a.pf+'</b></div>'
+    +'<div class="film-vrow"><span>Win rate</span><b>'+a.winPct+'%</b></div>'
+    +'<div class="film-vrow dim"><span>Trades</span><b>'+a.n+'</b></div></div>';}
+async function openFilm(){
+  const back=$("filmback"),m=$("filmmodal"); back.hidden=false; m.scrollTop=0;
+  const closeF=()=>{back.hidden=true;};
+  m.innerHTML='<button class="scm-close" title="Close (Esc)">✕</button><div class="film-load">◉ Running the film…</div>';
+  m.querySelector(".scm-close").onclick=closeF;
+  let j; try{ j=await(await fetch("/api/backtest")).json(); }catch(e){ m.querySelector(".film-load").textContent="Couldn't reach the backtester."; return; }
+  if(j.error){ m.innerHTML='<button class="scm-close">✕</button><div class="film-empty"><div class="film-title">The Film Room</div><p>'+j.error+'</p></div>'; m.querySelector(".scm-close").onclick=closeF; return; }
+  const b=j.base,sweep=j.sweep||[],vs=j.vs,best=sweep[0],pn=v=>v>0?"pos":v<0?"neg":"";
+  let edge='<div class="film-sec"><div class="film-h">The System · edge over '+b.span+'</div><div class="film-ecards">'
+    +filmEdgeCard("The Fade","Setup B · reversion at the extreme",b.setupB,true)
+    +filmEdgeCard(":25/:45 Retest","Setup A · directional continuation",b.setupA)
+    +filmEdgeCard("All signals","the forecast, traded",b.all)+'</div></div>';
+  let opt='';
+  if(best){ const rows=sweep.slice(0,8).map((r,i)=>'<tr class="'+(i===0?"best":"")+'"><td>'+r.confirmBars+'</td><td>'+r.wickFrac.toFixed(2)+'</td><td>'+(r.reversalOnly?"on":"off")+'</td><td>'+r.fade.n+'</td><td>'+r.fade.winPct+'%</td><td>'+r.fade.pf+'</td><td class="'+pn(r.fade.expR)+'">'+(r.fade.expR>=0?"+":"")+r.fade.expR+'R</td></tr>').join("");
+    opt='<div class="film-sec"><div class="film-h">The Optimizer · how it gets better</div>'
+      +'<div class="film-reco">▲ Best of '+sweep.length+' tested — <b>confirm '+best.confirmBars+' · wick '+best.wickFrac.toFixed(2)+' · reversal-'+(best.reversalOnly?"only":"off")+'</b> → <b class="pos">+'+best.fade.expR+'R</b> · PF '+best.fade.pf+' · '+best.fade.winPct+'% over '+best.fade.n+' fades. <span class="film-cur">Live default is confirm 1 — set FadeConfirmBars = '+best.confirmBars+' on the next recompile.</span></div>'
+      +'<table class="film-tbl"><thead><tr><th>confirm</th><th>wick</th><th>rev</th><th>n</th><th>win%</th><th>PF</th><th>exp</th></tr></thead><tbody>'+rows+'</tbody></table></div>';}
+  let film='';
+  if(vs){ const edgeWord=vs.counter.pf>vs.aligned.pf?"reversion — you make more FADING the grid than following it":"continuation — you trade with the grid";
+    film='<div class="film-sec"><div class="film-h">You vs the System · '+vs.nTrades+' trades on film</div><div class="film-vs">'
+      +filmVsCard("Aligned with the map","traded WITH the grid direction",vs.aligned)
+      +filmVsCard("Fading the map","traded AGAINST it — the reversion",vs.counter)
+      +filmVsCard("Off-system","no grid live — freelancing",vs.off)+'</div>'
+      +'<div class="film-insight">Your real edge is <b>'+edgeWord+'</b> (fade PF '+vs.counter.pf+' vs follow '+vs.aligned.pf+'). That is exactly what the tuned fade captures — the system and your instincts agree.</div>'
+      +'<div class="film-h2">The reel · your what-was-I-thinking moments</div><div class="film-reel">'
+      +vs.moments.map(mo=>'<div class="film-clip '+mo.cat+'"><div class="film-clip-l"><span class="film-clip-pnl neg">-$'+Math.abs(mo.pnl)+'</span><span class="film-clip-side">'+mo.side+(mo.grid?' · '+mo.gdir+' grid':'')+'</span></div><div class="film-clip-lesson">'+mo.lesson+'</div></div>').join("")+'</div>'
+      +'<div class="film-h2">▶ Aries · run the film</div><div class="film-aries" id="filmAries"><button class="film-runbtn" onclick="ariesFilm()">▶ Run the film session</button></div></div>';}
+  let sig='';
+  if(j.signals){ const S=j.signals;
+    const verdict=(pct,cont,fade,mid)=>pct>=55?cont:pct<=45?fade:mid;
+    const sc=(name,sub,n,body)=>'<div class="film-sigcard"><div class="film-elbl">'+name+'</div><div class="film-esub">'+sub+(n?' · '+n+' fired':'')+'</div><div class="sig-body">'+(n?body:"no data yet — logs on your next re-add")+'</div></div>';
+    sig='<div class="film-sec"><div class="film-h">The Signals · what each one actually means'+(S.span?' ('+S.span+')':'')+'</div><div class="film-sigs">'
+      +sc("BOS →","break of structure",S.bos.n,'<b class="'+(S.bos.contPct>=55?"pos":S.bos.contPct<=45?"neg":"")+'">'+S.bos.contPct+'% continue</b> · avg '+(S.bos.avgCont>=0?"+":"")+S.bos.avgCont+'pt / hr'+'<div class="sig-verdict">'+verdict(S.bos.contPct,"Mostly CONTINUATION — trade with the break.","More often a TRAP — fade the break.","Coin-flip — needs confluence.")+'</div>')
+      +sc("CHoCH ↺","change of character",S.choch.n,'<b class="'+(S.choch.revPct>=55?"pos":"")+'">'+S.choch.revPct+'% reversal holds</b> · level held <b>'+S.choch.holdPct+'%</b> on retest ('+S.choch.retests+' tested)<div class="sig-verdict">'+(S.choch.holdPct>=55?"The broken level flips to SUPPORT / RESISTANCE — trade the retest.":"Weak S/R flip — don’t lean on the retest.")+'</div>')
+      +sc("● gold confirm","the tradeable pivot dot",S.gold.n,'<b class="'+(S.gold.workPct>=55?"pos":S.gold.workPct<=45?"neg":"")+'">'+S.gold.workPct+'% worked</b> · avg '+(S.gold.avgMv>=0?"+":"")+S.gold.avgMv+'pt in grid dir<div class="sig-verdict">'+verdict(S.gold.workPct,"A real BUY/SELL signal — the dot has edge.","Weak alone — needs the fade/structure with it.","Confirmation, not a standalone trigger.")+'</div>')
+      +'</div></div>';
+  }
+  m.innerHTML='<button class="scm-close" title="Close (Esc)">✕</button>'
+    +'<div class="film-head"><div class="film-title">The Film Room</div><div class="film-sub">Instant replay for the desk — the system generates the tape; you and Aries review every window.</div></div>'
+    +edge+sig+opt+film;
+  m.querySelector(".scm-close").onclick=closeF; _filmData={b,vs};
+}
+async function ariesFilm(){
+  const box=$("filmAries"); if(!box||!_filmData)return; const b=_filmData.b,vs=_filmData.vs;
+  box.innerHTML='<span class="film-thinking">Aries is reviewing the tape…</span>';
+  const p="Run my film session. Backtest over "+b.span+": the FADE (reversion) edge is expR "+b.setupB.expR+"R / PF "+b.setupB.pf+"; the :25/:45 directional retest is expR "+b.setupA.expR+"R (roughly breakeven). "
+   +"How I actually traded vs the system's grids across "+vs.nTrades+" trades — ALIGNED with the grid: "+vs.aligned.n+" trades PF "+vs.aligned.pf+" net $"+vs.aligned.net+"; FADING/counter the grid: "+vs.counter.n+" PF "+vs.counter.pf+" net $"+vs.counter.net+"; off-system: "+vs.off.n+" PF "+vs.off.pf+" net $"+vs.off.net+". "
+   +"Give me the surgical film-room debrief in 4-6 sentences: what my true edge is, my single biggest leak, and the ONE change that makes the next window better. Ground it in a Vault framework.";
+  try{ const r=await(await fetch("/api/aries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({q:p})})).json();
+    box.innerHTML=r.text?'<div class="film-ariestext">'+linkRefs(r.text)+'</div>':(r.error?'<span class="film-thinking">'+r.error+'</span>':'Aries is offline.'); }
+  catch(e){ box.innerHTML='<span class="film-thinking">Couldn\'t reach Aries.</span>'; }
+}
+$("filmNav").onclick=e=>{e.preventDefault();openFilm();};
+$("filmback").addEventListener("click",e=>{ if(e.target===$("filmback"))$("filmback").hidden=true; });
+addEventListener("keydown",e=>{ if(e.key==="Escape"&&$("filmback")&&!$("filmback").hidden)$("filmback").hidden=true; });
+$("vaultback").addEventListener("click",e=>{ if(e.target===$("vaultback"))closeVault(); });
+document.addEventListener("click",e=>{ const c=e.target.closest&&e.target.closest(".vcard"); if(c)openVaultEntry(c.dataset.v); });
+addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("vaultback").hidden)closeVault(); });
+
+/* ── CITATION LINKING — wrap framework terms in Aries's notes with hoverable, clickable refs ── */
+const REF_TERMS=[
+ [/\b(spring|upthrust|accumulation|distribution|wyckoff)\b/i,"wyckoff"],
+ [/\b(market profile|value area|initial balance|equilibrium|premium|discount|balance|imbalance)\b/i,"profile"],
+ [/\b(no.?supply|no.?demand|effort vs\.? result|stopping volume|volume spread)\b/i,"vsa"],
+ [/\b(cho?ch|change of character|bos|break of structure|liquidity|sweep|order block|smart money|manipulation|power of three|amd)\b/i,"smc"],
+ [/\b(swing high|swing low|fractal|structure break)\b/i,"lux"],
+ [/\b(validat\w*|backtest|overfit|curve.?fit|evidence)\b/i,"aronson"],
+ [/\b(elliott|fibonacci|retrace\w*|extension|impulse)\b/i,"elliott"]
+];
+function linkRefs(text){
+  if(!text)return text; let out=text, used={};
+  for(const [re,id] of REF_TERMS){
+    if(used[id])continue;
+    out=out.replace(re,m=>{ if(used[id])return m; used[id]=1;
+      return '<span class="vref" data-v="'+id+'" tabindex="0">'+m+'</span>'; });
+  }
+  return out;
+}
+// hover bubble + click-through for the citation chips
+const _reftip=$("reftip");
+document.addEventListener("mouseover",e=>{ const r=e.target.closest&&e.target.closest(".vref"); if(!r)return;
+  const en=VBYID[r.dataset.v]; if(!en)return;
+  _reftip.innerHTML='<span class="rt-cat">'+en.cat+' · '+en.sur+'</span>'+en.tag+'<span class="rt-go">click to open in the Vault ↗</span>';
+  _reftip.hidden=false; const b=r.getBoundingClientRect();
+  _reftip.style.left=Math.min(innerWidth-236,Math.max(8,b.left))+"px"; _reftip.style.top=(b.bottom+8)+"px";
+});
+document.addEventListener("mouseout",e=>{ if(e.target.closest&&e.target.closest(".vref"))_reftip.hidden=true; });
+document.addEventListener("click",e=>{ const r=e.target.closest&&e.target.closest(".vref"); if(r){_reftip.hidden=true; openVaultEntry(r.dataset.v);} });
+const HRS=h=>String(h).padStart(2,"0")+":00";
+/* ═══ DAY REPORT CARD — the surgical EOD debrief, from the real trade log (MFE/ETD) ═══ */
+let _reportCard=null;
+const rcMoney=v=>(v>=0?"+$":"-$")+Math.abs(Math.round(v));
+function gaugeCard(frac,big,label,sub,color){
+  frac=Math.max(0,Math.min(1,frac)); const ang=180*(1-frac)*Math.PI/180;
+  const x=(50+40*Math.cos(ang)).toFixed(1), y=(50-40*Math.sin(ang)).toFixed(1);
+  return '<div class="gauge-card"><svg viewBox="0 0 100 58" class="gauge">'
+    +'<path d="M10,50 A40,40 0 0 1 90,50" fill="none" stroke="var(--color-border-default)" stroke-width="7" stroke-linecap="round"/>'
+    +'<path d="M10,50 A40,40 0 0 1 '+x+','+y+'" fill="none" stroke="'+color+'" stroke-width="7" stroke-linecap="round"/>'
+    +'<text x="50" y="46" text-anchor="middle" class="gauge-big" fill="'+color+'">'+big+'</text></svg>'
+    +'<div class="gauge-lbl">'+label+'</div><div class="gauge-sub">'+sub+'</div></div>';
+}
+function rcKpi(v,k,cls){ return '<div class="rc-kpi"><div class="rc-kpi-v '+(cls||"")+'">'+v+'</div><div class="rc-kpi-k">'+k+'</div></div>'; }
+function reportCoaching(c){
+  const b=[]; const POS=getComputedStyle(document.documentElement);
+  if(c.gaveBack.cost>Math.max(80,Math.abs(c.net)*0.4)) b.push("The headline is give-back: $"+c.gaveBack.cost+" round-tripped on "+c.gaveBack.n+" winners that were up big. The entries were right — the exits weren't. Breakeven at +1R and let a trailing stop, not your nerves, take you out. Fix this one thing and today's "+rcMoney(c.net)+" becomes a much bigger number.");
+  if(c.exits.manual>c.n*0.7) b.push("You hand-managed "+c.exits.manual+" of "+c.n+" exits — the R:R barely ran. Your job is the entry and the read; let the ATM's stop and target do the flinching so you stop cutting winners and holding losers.");
+  if(c.leftOnTable>60) b.push("$"+c.leftOnTable+" left on the table — winners cut before they ran. Scale out, don't slam out; let the structure (a clean BOS in your direction) tell you the move still has legs.");
+  if(c.worstHour&&c.worstHour.net<-60) b.push("The "+HRS(c.worstHour.h)+" hour bled "+rcMoney(c.worstHour.net)+" at "+c.worstHour.wr+"% — a stand-down window. When the tape hasn't given a CHoCH or a liquidity sweep to trade, the surgical move is no trade.");
+  if(!b.length) b.push("Disciplined session — you traded the structure and protected the green. Keep timing the windows and letting the setups come to you.");
+  return b.join(" ");
+}
+function openReportCard(day){
+  const rc=_reportCard; if(!rc)return;
+  const c=(rc.perDay&&rc.perDay[day])||rc.overall; if(!c)return;
+  const grade= (c.net>0&&c.winPct>=55&&c.gaveBack.cost<Math.abs(c.net)*0.3)?"A":(c.net>0&&c.winPct>=50)?"B":c.net>0?"C":c.net>-100?"D":"F";
+  const disc=Math.round(100*(c.exits.stop+c.exits.target)/Math.max(1,c.n));
+  const maxH=Math.max(1,...c.hours.map(x=>Math.abs(x.net)));
+  const cvar=n=>"var(--color-"+n+")";
+  let h='<button class="scm-close" title="Close (Esc)">✕</button>'
+   +'<div class="scm-head"><span class="scm-grade '+grade+'">'+grade+'</span>'
+   +'<div><div class="scm-h1">Day Report · '+day+'</div><div class="scm-sub">'+c.n+' trades · '+rcMoney(c.net)+' net · the surgical scorecard</div></div></div>'
+   +'<div class="rc-gauges">'
+   + gaugeCard(c.winPct/100,c.winPct+"%","Win rate",c.wins+"W / "+c.losses+"L", c.winPct>=50?cvar("positive"):cvar("warning"))
+   + gaugeCard(Math.min(1,c.pf/3),c.pf.toFixed(2),"Profit factor", c.pf>=1.6?"strong":c.pf>=1?"an edge":"leaking", c.pf>=1.5?cvar("positive"):c.pf>=1?cvar("warning"):cvar("negative"))
+   + gaugeCard(disc/100,disc+"%","Exit discipline", c.exits.manual+" hand-managed", disc>=40?cvar("positive"):cvar("negative"))
+   +'</div>'
+   +'<div class="rc-kpis">'
+   + rcKpi(rcMoney(c.net),"net", c.net>=0?"pos":"neg") + rcKpi(rcMoney(c.exp),"expectancy / trade", c.exp>=0?"pos":"neg")
+   + rcKpi(c.avgHoldMin+"m","avg hold","") + rcKpi(rcMoney(c.long.net),"long ("+c.long.n+")", c.long.net>=0?"pos":"neg")
+   + rcKpi(rcMoney(c.short.net),"short ("+c.short.n+")", c.short.net>=0?"pos":"neg")
+   +'</div>'
+   +(c.curve&&c.curve.length>1?'<div class="scm-sec"><div class="scm-lbl">Session equity curve</div><div class="panel-viz">'+equitySpark(c.curve)+'</div></div>':'')
+   +(_oow&&_oow.n?'<div class="scm-sec"><div class="scm-lbl">The complete day · in-window vs off-system</div><div class="scm-body">'
+     +'<b class="'+(c.net-_oow.net>=0?"acc-yes":"acc-no")+'">'+(c.n-_oow.n)+' trades in scored windows ('+rcMoney(c.net-_oow.net)+')</b> · '
+     +'<b class="acc-no">'+_oow.n+' off-system ('+rcMoney(_oow.net)+')</b>. '
+     +'<b>'+Math.round(_oow.n/c.n*100)+'%</b> of your trades were '+linkRefs("outside the system — freelancing between the setups")+'. The system can only sharpen what runs through it.</div></div>':'')
+   +'<div class="scm-cols"><div class="scm-col"><div class="scm-lbl">Where the money leaked</div>'
+   +'<div class="rc-leak"><span class="rc-leak-v neg">$'+c.leftOnTable+'</span> left on the table — winners exited before they ran (peak vs. what you kept).</div>'
+   +'<div class="rc-leak"><span class="rc-leak-v neg">$'+c.gaveBack.cost+'</span> given back on <b>'+c.gaveBack.n+'</b> winners that were up big and round-tripped.</div>'
+   +'<div class="rc-leak"><span class="rc-leak-v">'+c.exits.manual+' / '+c.n+'</span> exits hand-managed — only '+(c.exits.stop+c.exits.target)+' let the R:R run.</div>'
+   +'</div><div class="scm-col"><div class="scm-lbl">Your clock today</div>'
+   +(c.bestHour?'<div class="rc-hr"><span>Best '+HRS(c.bestHour.h)+'</span><b class="pos">'+rcMoney(c.bestHour.net)+' · '+c.bestHour.wr+'%</b></div>':'')
+   +(c.worstHour?'<div class="rc-hr"><span>Trap '+HRS(c.worstHour.h)+'</span><b class="neg">'+rcMoney(c.worstHour.net)+' · '+c.worstHour.wr+'%</b></div>':'')
+   +'<div class="scm-lbl" style="margin-top:var(--space-4)">Every hour</div><div class="rc-hours">'
+   + c.hours.slice().sort((a,b)=>a.h-b.h).map(hh=>'<div class="rc-hbar"><span class="rc-hh">'+HRS(hh.h)+'</span><div class="rc-htrack"><div class="rc-hfill '+(hh.net>=0?"pos":"neg")+'" style="width:'+(Math.abs(hh.net)/maxH*100).toFixed(0)+'%"></div></div><b class="'+(hh.net>=0?"pos":"neg")+'">'+rcMoney(hh.net)+'</b></div>').join("")
+   +'</div></div></div>'
+   +'<div class="scm-sec"><div class="scm-lbl">▸ Aries · the surgical debrief</div><div class="scm-prep">'+linkRefs(reportCoaching(c))+'</div></div>';
+  const m=$("scmodal"); m.className="scmodal"; m.innerHTML=h; m.scrollTop=0; $("scback").hidden=false;
+  m.querySelector(".scm-close").onclick=closeScard;
+}
+document.addEventListener("click",e=>{ const c=e.target.closest&&e.target.closest(".scard.report"); if(c&&c.dataset.rc)openReportCard(c.dataset.rc); });
+// ── OUT OF WINDOW — trades taken off-system (outside a scored window): the teachable moment ──
+let _oow=null;
+function oowCoaching(o){
+  if(o.net<0) return "These "+o.n+" trades were taken outside your scored windows — off-system — and cost "+rcMoney(o.net)+" at "+o.winPct+"% win. This is the tuition of deviation: with no qualified grid, no confirm, no liquidity read, you're guessing, not executing. The setups are the edge; freelancing between them is where discipline leaks. Every off-system loss is a rule you haven't written yet.";
+  return "You took "+o.n+" trades outside your scored windows for "+rcMoney(o.net)+" at "+o.winPct+"%. Green — but off-system green is luck borrowing against discipline. Ask honestly: was there a real structure read — a CHoCH, a liquidity sweep, a BOS — you can codify into a setup? Turn the repeatable ones into rules; cut the rest. A surgeon doesn't improvise.";
+}
+function openOutOfWindow(){
+  const o=_oow; if(!o)return;
+  let h='<button class="scm-close" title="Close (Esc)">✕</button>'
+   +'<div class="scm-head"><span class="scm-grade C" style="font-size:56px">⚠</span>'
+   +'<div><div class="scm-h1">Out of Window</div><div class="scm-sub">'+o.n+' off-system trades · '+rcMoney(o.net)+' · '+o.winPct+'% win</div></div></div>'
+   +'<div class="scm-sec"><div class="scm-lbl">The teachable moment</div><div class="scm-prep">'+linkRefs(oowCoaching(o))+'</div></div>'
+   +'<div class="scm-cols"><div class="scm-col"><div class="scm-lbl">The trades · off-system</div>'+o.trades.map(tradeRow).join("")+'</div>'
+   +'<div class="scm-col"><div class="scm-lbl">By hour · where you deviated</div>'
+   + o.hours.map(hh=>'<div class="rc-hr"><span>'+HRS(hh.h)+' · '+hh.n+' trade'+(hh.n>1?"s":"")+'</span><b class="'+(hh.net>=0?"pos":"neg")+'">'+rcMoney(hh.net)+'</b></div>').join("")
+   +'</div></div>';
+  const m=$("scmodal"); m.className="scmodal"; m.innerHTML=h; m.scrollTop=0; $("scback").hidden=false;
+  m.querySelector(".scm-close").onclick=closeScard;
+}
+document.addEventListener("click",e=>{ if(e.target.closest&&e.target.closest(".scard.oow"))openOutOfWindow(); });
+let _edgeWin="30",_edgeAcct="live",_lastMtData=null;
+const EDGEWINS=[["today","Today"],["7","7D"],["14","14D"],["30","30D"],["60","60D"],["90","90D"],["all","All"]];
+function bindEdge(){
+  document.querySelectorAll("#mtpanel .edgebtn[data-win]").forEach(b=>b.onclick=()=>{ _edgeWin=b.dataset.win; if(_lastMtData)renderMyTrading(_lastMtData); });
+  document.querySelectorAll("#mtpanel .acctbtn[data-acct]").forEach(b=>b.onclick=()=>{ _edgeAcct=b.dataset.acct; if(_lastMtData)renderMyTrading(_lastMtData); });
+}
+function renderMyTrading(mt){
+  const el=$("mtpanel");
+  if(!mt||!mt.windows){if(_lastMt!=="empty"){el.innerHTML='<div class="empty">Drop a NinjaTrader "Live Trades" CSV into Documents\\RollingFib\\backtests and your real edge scores here.</div>';_lastMt="empty";}return;}
+  _lastMtData=mt; $("mtfile").textContent=mt.file;
+  // account filter: Live (real Apex money) / Sim (practice) / All — sim results flatter and distort coaching
+  const aw=mt.acctWindows||{all:mt.windows,live:null,sim:null};
+  if(!aw[_edgeAcct])_edgeAcct=aw.live?"live":"all";   // default to the real-money edge
+  const wins=aw[_edgeAcct]||aw.all||mt.windows;
+  if(!wins[_edgeWin])_edgeWin="all";
+  const o=wins[_edgeWin],m=(v,d)=>(v>=0?"+":"")+(v||0).toFixed(d===undefined?0:d),cls=v=>v>0?"pos":v<0?"neg":"";
+  const ACC=[["all","All"]]; if(aw.live)ACC.push(["live","Live"]); if(aw.sim)ACC.push(["sim","Sim"]);
+  const acctSel=ACC.length>1?'<div class="edgesel acctsel">'+ACC.map(([k,lbl])=>'<button class="edgebtn acctbtn'+(k===_edgeAcct?" on":"")+'" data-acct="'+k+'">'+lbl+((aw[k]&&aw[k].all&&aw[k].all.n)?'<span class="edgen">'+aw[k].all.n+'</span>':'')+'</button>').join("")+'</div>':'';
+  let _pn=-1;
+  const sel='<div class="edgesel">'+EDGEWINS.map(([k,lbl])=>{const w=wins[k],n=w?w.n:0;
+    const dupe=n>0&&n===_pn&&k!=="all"; if(n>0)_pn=n;   // this window holds the same trades as a shorter one — history isn't that deep yet
+    return '<button class="edgebtn'+(k===_edgeWin?" on":"")+(dupe?" dupe":"")+'" data-win="'+k+'"'+(dupe?' title="Same trades as a shorter window — your history isn\'t that deep yet"':'')+'>'+lbl+(w&&w.n?'<span class="edgen">'+w.n+'</span>':'')+'</button>';}).join("")+'</div>';
+  let body;
+  if(!o.n){ body='<div class="empty" style="margin-top:10px">No closed trades in this window'+(_edgeWin==="today"?" yet.":".")+'</div>'; }
+  else{ const sp=o.curve&&o.curve.length>1?spark(o.curve):"",accl=_edgeAcct==="live"?"Live · ":_edgeAcct==="sim"?"Sim · ":"";
+    body=(sp?'<div class="edgespark">'+sp+'<span class="edgesparklbl">'+accl+o.n+' trades · '+o.days+' day'+(o.days>1?"s":"")+' · net <b class="'+cls(o.net)+'">'+m(o.net)+'</b></span></div>':'')
+    +'<div class="mtgrid">'
+    +'<div class="kpi"><div class="kl">Profit factor</div><div class="kv '+(o.pf>=1.6?"pos":o.pf>=1?"":"neg")+'">'+o.pf.toFixed(2)+'</div><div class="ks">'+o.n+' trades · '+o.days+'d</div></div>'
+    +'<div class="kpi"><div class="kl">Win rate</div><div class="kv">'+o.wr+'%</div><div class="ks">'+m(o.aw)+' / '+m(o.al)+' avg</div></div>'
+    +'<div class="kpi"><div class="kl">Expectancy</div><div class="kv '+cls(o.exp)+'">'+m(o.exp,2)+'</div><div class="ks">per trade</div></div>'
+    +'<div class="kpi"><div class="kl">Net</div><div class="kv '+cls(o.net)+'">'+m(o.net)+'</div><div class="ks">'+m(o.aw)+' aw · '+m(o.al)+' al</div></div>'
+    +(o.gaveBack&&o.gaveBack.n?'<div class="kpi warn"><div class="kl">Given back</div><div class="kv">'+m(o.gaveBack.cost)+'</div><div class="ks">'+o.gaveBack.n+' round-tripped</div></div>':'')
+    +'<div class="kpi split"><div class="kl" style="margin-bottom:4px;">Long vs Short</div>'
+    +'<div class="row"><span>Short</span><b class="'+cls(o.short.net)+'">'+m(o.short.net)+' · PF '+o.short.pf.toFixed(1)+'</b></div>'
+    +'<div class="row"><span>Long</span><b class="'+cls(o.long.net)+'">'+m(o.long.net)+' · PF '+o.long.pf.toFixed(1)+'</b></div></div>'
+    +((o.bestHour||o.worstHour)?'<div class="kpi split"><div class="kl" style="margin-bottom:4px;">Your clock</div>'
+      +(o.bestHour?'<div class="row"><span>Best '+HRS(o.bestHour.h)+'</span><b class="pos">'+m(o.bestHour.net)+' · '+o.bestHour.wr+'%</b></div>':'')
+      +(o.worstHour?'<div class="row"><span>Trap '+HRS(o.worstHour.h)+'</span><b class="neg">'+m(o.worstHour.net)+' · '+o.worstHour.wr+'%</b></div>':'')
+      +'</div>':'')
+    +'</div>'; }
+  const h=acctSel+sel+body;
+  if(h!==_lastMt){el.innerHTML=h;_lastMt=h;bindEdge();}
+}
+/* ── MES TERMINAL — native candlestick chart drawn from NinjaTrader's real bars, grid plotted on top.
+   Congruent with the radar by construction (same instrument, same prices). ── */
+let _chartColors=null,_lastChartBars=null,_lastChartSt=null,_lastChartWins=null,_lastChartEvents=null,_cv={shown:0,off:0};
+let _gridDim=Math.max(0.12,Math.min(1,(+localStorage.getItem("rf_gridDim")||100)/100));   // grid drawing brightness (user-adjustable)
+// chart interaction tools — grab/pan, crosshair, trendline drawing
+let _tool="grab",_crossOn=false,_trend=[],_draft=null,_cross=null,_cvMap=null;
+function chartColors(){
+  if(_chartColors)return _chartColors;
+  const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim()||"#888";
+  _chartColors={pos:g("--color-positive"),neg:g("--color-negative"),acc:g("--color-gold-400"),intel:g("--color-teal-400"),
+    muted:g("--color-text-muted"),sec:g("--color-text-secondary"),warn:g("--color-warning"),violet:g("--color-violet-400"),bg:g("--color-bg-base"),
+    gridLine:"rgba(245,240,232,.30)",gridLbl:"rgba(245,240,232,.68)",tealDim:"rgba(0,212,170,.42)",
+    choch:"#e08a3c",bos:"#4aa3df",swing:"rgba(245,240,232,.34)",
+    prem:"rgba(224,90,90,.05)",disc:"rgba(74,163,90,.05)",
+    gridDim:"rgba(245,240,232,.13)",accDim:"rgba(201,168,76,.42)",tealFaint:"rgba(0,212,170,.20)",scale:"rgba(245,240,232,.045)",scaleLbl:"rgba(245,240,232,.24)"};
+  return _chartColors;
+}
+function renderChart(bars,st,wins,events){
+  const cv=$("mchart"); if(!cv)return; const wrap=cv.parentElement,empty=$("mchartempty"),meta=$("termmeta");
+  _lastChartBars=bars; _lastChartSt=st;
+  if(wins!==undefined)_lastChartWins=wins; if(events!==undefined)_lastChartEvents=events;
+  wins=_lastChartWins||[]; events=_lastChartEvents||[];
+  if(!bars||!bars.length){ if(empty)empty.style.display="flex"; cv.style.display="none"; if(meta)meta.textContent=""; return; }
+  if(empty)empty.style.display="none"; cv.style.display="block";
+  const total=bars.length;
+  if(!_cv.shown||_cv.shown>total)_cv.shown=Math.min(90,total);
+  _cv.off=Math.max(0,Math.min(_cv.off,Math.max(0,total-_cv.shown)));
+  const vend=total-_cv.off, vstart=Math.max(0,vend-_cv.shown), view=bars.slice(vstart,vend);
+  const C=chartColors(),dpr=window.devicePixelRatio||1,W=wrap.clientWidth,H=wrap.clientHeight;
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr); cv.style.width=W+"px"; cv.style.height=H+"px";
+  const ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+  const padL=6,padR=66,padT=10,padB=16,plotW=W-padL-padR,plotH=H-padT-padB;
+  const inst=(st&&st.instrument)||"MES";
+  const lv=(st&&st.levels)||[],md=(st&&st.mids)||[],live=st&&gact(st),px=st&&st.price;
+  // y-range: visible candles + the ACTIVE grid + price/entry only (past grids clip → candles never compress)
+  let lo=Infinity,hi=-Infinity;
+  view.forEach(b=>{lo=Math.min(lo,+b.l);hi=Math.max(hi,+b.h);});
+  if(live)[...lv,...md].forEach(v=>{if(v){lo=Math.min(lo,v);hi=Math.max(hi,v);}});
+  if(st&&st._entry){lo=Math.min(lo,st._entry);hi=Math.max(hi,st._entry);}
+  if(px){lo=Math.min(lo,px);hi=Math.max(hi,px);}
+  if(!isFinite(lo)||hi<=lo)return;
+  const rp=(hi-lo)*0.06||1; lo-=rp; hi+=rp;
+  const rgap=Math.max(28,Math.min(70,plotW*0.08)),plotWc=plotW-rgap;   // right breathing room (chart margin) so the last bar + price pill aren't jammed on the axis
+  const Y=p=>padT+(hi-p)/(hi-lo)*plotH,n=view.length,bw=plotWc/n,X=i=>padL+i*bw+bw/2,cw=Math.max(1,Math.min(bw*0.66,9));
+  const clampY=y=>Math.max(padT,Math.min(padT+plotH,y)), inY=p=>p>=lo&&p<=hi;
+  // time → x mapping (nearest bar), for anchoring grids/marks to when they happened
+  const ms=t=>Date.parse((t||"").replace(" ","T"));
+  const viewMs=view.map(b=>ms(b.t)),firstMs=viewMs[0],lastMs=viewMs[viewMs.length-1],HB=150000;
+  const idxAtMs=v=>{let best=0,bd=Infinity;for(let i=0;i<viewMs.length;i++){const d=Math.abs(viewMs[i]-v);if(d<bd){bd=d;best=i;}}return best;};
+  const xClamp=t=>{const v=ms(t);if(!isFinite(v))return null;if(v<=firstMs)return padL;if(v>=lastMs)return padL+plotW;return X(idxAtMs(v));};
+  const xMark=t=>{const v=ms(t);if(!isFinite(v)||v<firstMs-HB||v>lastMs+HB)return null;return X(idxAtMs(v));};
+  const label=(yy,txt,color)=>{ctx.font="700 10px ui-monospace,monospace";ctx.textAlign="left";
+    ctx.lineWidth=3;ctx.lineJoin="round";ctx.strokeStyle="rgba(2,3,5,.9)";ctx.strokeText(txt,padL+plotW+6,yy+3);   // dark halo, not a box — candles show through
+    ctx.fillStyle=color;ctx.fillText(txt,padL+plotW+6,yy+3);};
+  const hline=(p,color,dash,txt)=>{if(!inY(p))return;const yy=Y(p);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.setLineDash(dash||[]);
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(padL+plotW,yy);ctx.stroke();ctx.setLineDash([]);if(txt)label(yy,txt,color);};
+  const dot=(x,y,col)=>{ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,1.3,0,7);ctx.fill();};
+  // a readable mark — colored text with a thin dark HALO (no filled box), so it reads over candles without covering them
+  const chip=(x,y,txt,col)=>{ctx.font="700 9px ui-monospace,monospace";ctx.textAlign="center";
+    const cx=Math.max(padL+22,Math.min(x,padL+plotW-22));
+    ctx.lineWidth=3;ctx.lineJoin="round";ctx.strokeStyle="rgba(2,3,5,.9)";ctx.strokeText(txt,cx,y+3);
+    ctx.fillStyle=col;ctx.fillText(txt,cx,y+3);};
+
+  // ── background: faint 10pt price scale ──
+  ctx.setLineDash([]);ctx.textAlign="left";ctx.font="9px ui-monospace,monospace";
+  for(let p=Math.ceil(lo/10)*10;p<hi;p+=10){const yy=Y(p);ctx.strokeStyle=C.scale;ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(padL+plotW,yy);ctx.stroke();ctx.fillStyle=C.scaleLbl;ctx.fillText(p.toFixed(0),padL+2,yy-2);}
+  // ── time axis: faint hour lines + labels ──
+  ctx.textAlign="center";ctx.font="9px ui-monospace,monospace";let lastHr=null,lastLabX=-99;
+  view.forEach((b,i)=>{const hr=b.t.slice(11,13);if(hr!==lastHr){lastHr=hr;const x=X(i);
+    ctx.strokeStyle="rgba(245,240,232,.05)";ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,padT+plotH);ctx.stroke();
+    if(x-lastLabX>34){ctx.fillStyle=C.muted;ctx.fillText(hr+":00",x,padT+plotH+12);lastLabX=x;}}});
+
+  // ── GRIDS: each window anchored to its live span (past dim/boxed, active bold/full-width) ──
+  const wsorted=(wins||[]).filter(w=>w.inst===inst&&w.levels&&w.levels.length).slice().sort((a,b)=>ms(a.t)-ms(b.t));
+  function drawGrid(w,x0,x1,active){
+    const A=(active?1:0.5)*_gridDim;   // user grid-brightness multiplier
+    if(active&&w.levels[3]!=null){ // premium (above 50) / discount (below 50) tint
+      ctx.globalAlpha=_gridDim;
+      const y50=clampY(Y(w.levels[3])),yTop=clampY(Y(Math.max(...w.levels))),yBot=clampY(Y(Math.min(...w.levels)));
+      ctx.fillStyle=C.prem;ctx.fillRect(x0,yTop,Math.max(0,x1-x0),Math.max(0,y50-yTop));
+      ctx.fillStyle=C.disc;ctx.fillRect(x0,y50,Math.max(0,x1-x0),Math.max(0,yBot-y50)); }
+    ctx.globalAlpha=A;
+    (w.mids||[]).forEach(p=>{if(!inY(p))return;const yy=Y(p);ctx.strokeStyle=active?C.tealDim:C.tealFaint;ctx.lineWidth=1;ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();});
+    w.levels.forEach((p,i)=>{if(!inY(p))return;const yy=Y(p),major=(i===0||i===6),ext=(i===7);
+      ctx.strokeStyle=ext?C.violet:major?(active?C.acc:C.accDim):(active?C.gridLine:C.gridDim);
+      ctx.lineWidth=(major||ext)?(active?1.6:1):1;ctx.setLineDash((major||ext)?[]:[2,5]);
+      ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+      if(active){ctx.setLineDash([]);label(yy,NAME[i]+" "+p.toFixed(2),ext?C.violet:major?C.acc:C.gridLbl);}});
+    if(active&&w.pivot>=0&&w.mids&&w.mids[w.pivot]!=null&&inY(w.mids[w.pivot])){const yy=Y(w.mids[w.pivot]);
+      ctx.strokeStyle=C.acc;ctx.lineWidth=1.8;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();
+      label(yy,"◆ PIVOT "+(+w.mids[w.pivot]).toFixed(2),C.acc);}
+    if(w.reversalType){ctx.globalAlpha=(active?0.95:0.5)*_gridDim;ctx.font="700 9px ui-monospace,monospace";ctx.textAlign="left";
+      ctx.fillStyle=w.reversalType==="REVERSAL"?C.acc:w.reversalType==="CONTINUATION"?C.intel:C.muted;
+      const ty=clampY(Y(Math.max(...w.levels)))+(w.dir==="BULL"?-4:11);
+      ctx.fillText((w.reversalType==="REVERSAL"?"↺ ":w.reversalType==="CONTINUATION"?"→ ":"")+w.reversalType.toLowerCase(),x0+3,ty);}
+    ctx.globalAlpha=1;ctx.setLineDash([]);
+  }
+  if(wsorted.length){
+    wsorted.forEach((w,wi)=>{const nextW=wsorted[wi+1];
+      const wStart=ms(w.t),wEnd=w.invalidatedAt?ms(w.invalidatedAt):(nextW?ms(nextW.t):lastMs+HB);
+      if(wEnd<firstMs||wStart>lastMs+HB)return;                          // off-screen in time
+      const active=live&&wi===wsorted.length-1;
+      const x0=xClamp(w.t), x1=active?padL+plotW:(w.invalidatedAt?xClamp(w.invalidatedAt):(nextW?xClamp(nextW.t):padL+plotW));
+      if(x0===null)return; if(!active&&x1-x0<2)return;
+      drawGrid(w,x0,x1,active);});
+  } else if(lv.length){                                                   // fallback: no windows → the live/last state grid, full width
+    drawGrid({levels:lv,mids:md,pivot:st.pivot,dir:st.dir===-1?"BEAR":"BULL",reversalType:st.reversalType},padL,padL+plotW,live);
+  }
+
+  // ── candles ──
+  view.forEach((b,i)=>{const up=+b.c>=+b.o,col=up?C.pos:C.neg,xc=X(i);
+    ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=1;ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(xc,Y(+b.h));ctx.lineTo(xc,Y(+b.l));ctx.stroke();
+    const yo=Y(+b.o),yc=Y(+b.c);ctx.fillRect(xc-cw/2,Math.min(yo,yc),cw,Math.max(1,Math.abs(yc-yo)));});
+
+  // ── swing pivots (5m L=2 fractal) — subtle; skipped when bars are too dense to read cleanly ──
+  if(bw>=5)for(let gi=Math.max(vstart+2,2);gi<Math.min(vend-2,total-2);gi++){
+    const H0=+bars[gi].h,L0=+bars[gi].l;let sh=true,sl=true;
+    for(let j=gi-2;j<=gi+2;j++){if(j===gi)continue;if(+bars[j].h>=H0)sh=false;if(+bars[j].l<=L0)sl=false;}
+    const vi=gi-vstart;if(sh&&inY(H0))dot(X(vi),Y(H0)-4,C.swing);if(sl&&inY(L0))dot(X(vi),Y(L0)+4,C.swing);}
+
+  // ── structure marks (CHoCH/BOS) — labeled chip so they read over candles ──
+  events.filter(e=>e.type==="STRUCTURE"&&e.i===inst).forEach(e=>{const x=xMark(e.t);if(x===null)return;
+    const m=/broke\s+([\d.]+)/.exec(e.msg||"");if(!m)return;const p=+m[1];if(!inY(p))return;
+    const choch=/CHoCH/.test(e.msg),up=/up/.test(e.msg),col=choch?C.choch:C.bos,yy=Y(p);
+    ctx.strokeStyle=col;ctx.lineWidth=1.4;ctx.setLineDash([3,2]);ctx.beginPath();ctx.moveTo(x-9,yy);ctx.lineTo(x+9,yy);ctx.stroke();ctx.setLineDash([]);
+    chip(x,up?yy-9:yy+9,(choch?"CHoCH ":"BOS ")+(up?"▲":"▼"),col);});
+
+  // ── fade arrows (sweep-and-reject) — bigger arrow + labeled chip ──
+  events.filter(e=>e.type==="FADE"&&e.i===inst).forEach(e=>{const x=xMark(e.t);if(x===null)return;
+    const m=/\(([\d.]+)\)/.exec(e.msg||"");const p=m?+m[1]:null;const long=/^LONG/.test(e.msg||""),aplus=/A\+/.test(e.msg||"");
+    const col=aplus?C.acc:(long?C.pos:C.neg),yy=p!=null&&inY(p)?Y(p):(long?padT+plotH-16:padT+16);
+    ctx.fillStyle=col;ctx.beginPath();
+    if(long){ctx.moveTo(x,yy+4);ctx.lineTo(x-6,yy+13);ctx.lineTo(x+6,yy+13);}else{ctx.moveTo(x,yy-4);ctx.lineTo(x-6,yy-13);ctx.lineTo(x+6,yy-13);}
+    ctx.closePath();ctx.fill();chip(x,long?yy+23:yy-23,(long?"BUY":"SELL")+(aplus?" A+":""),col);});
+
+  // ── continuation entries (:25/:45 with-trend pullback) — hollow chevron + chip, distinct from the filled fade arrow ──
+  events.filter(e=>e.type==="CONTINUATION"&&e.i===inst).forEach(e=>{const x=xMark(e.t);if(x===null)return;
+    const m=/@ ([\d.]+)/.exec(e.msg||"");const p=m?+m[1]:null;const long=/^LONG/.test(e.msg||"");
+    const col=long?C.pos:C.neg,yy=p!=null&&inY(p)?Y(p):(long?padT+plotH-16:padT+16);
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+    if(long){ctx.moveTo(x-6,yy+13);ctx.lineTo(x,yy+4);ctx.lineTo(x+6,yy+13);}else{ctx.moveTo(x-6,yy-13);ctx.lineTo(x,yy-4);ctx.lineTo(x+6,yy-13);}
+    ctx.stroke();chip(x,long?yy+24:yy-24,(long?"BUY":"SELL")+" cont",col);});
+
+  // ── your live entry / 1R stop / target ──
+  if(live&&st._entry&&st._side){const short=st._side==="SHORT",R=POS_R_PTS;
+    hline(short?st._entry+R:st._entry-R,C.neg,[4,3],"STOP");
+    hline(short?st._entry-R:st._entry+R,C.pos,[4,3],"TGT");
+    hline(st._entry,C.warn,[2,2],"IN "+st._entry.toFixed(2));}
+  // ── live price line + pill ──
+  if(px){const col=st.dir===-1?C.neg:st.dir===1?C.pos:C.acc,yy=Y(px);
+    ctx.strokeStyle=col;ctx.lineWidth=1;ctx.setLineDash([1,2]);ctx.beginPath();ctx.moveTo(padL,yy);ctx.lineTo(padL+plotW,yy);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=col;ctx.fillRect(padL+plotW,yy-7,padR,14);
+    ctx.fillStyle=C.bg;ctx.font="bold 10px ui-monospace,monospace";ctx.textAlign="left";ctx.fillText(px.toFixed(2),padL+plotW+4,yy+3);}
+  // ── user drawings: trendlines (anchored to bars so they pan/zoom) + crosshair ──
+  const xForBar=i=>padL+(i-vstart)*bw+bw/2;
+  const allMs=bars.map(b=>ms(b.t)),xForMs=v=>{let best=0,bd=Infinity;for(let i=0;i<allMs.length;i++){const dd=Math.abs(allMs[i]-v);if(dd<bd){bd=dd;best=i;}}return xForBar(best);};
+  const drawTL=(t,col)=>{ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(xForMs(t.ms1),Y(t.p1));ctx.lineTo(xForMs(t.ms2),Y(t.p2));ctx.stroke();};
+  _trend.forEach(t=>drawTL(t,C.acc)); if(_draft)drawTL(_draft,C.intel);
+  if(_cross){const cx=Math.max(padL,Math.min(padL+plotW,_cross.x)),cy=Math.max(padT,Math.min(padT+plotH,_cross.y));
+    ctx.strokeStyle="rgba(245,240,232,.4)";ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(cx,padT);ctx.lineTo(cx,padT+plotH);ctx.moveTo(padL,cy);ctx.lineTo(padL+plotW,cy);ctx.stroke();ctx.setLineDash([]);
+    const pAt=hi-(cy-padT)/plotH*(hi-lo);
+    ctx.fillStyle=C.acc;ctx.fillRect(padL+plotW,cy-7,padR,14);ctx.fillStyle=C.bg;ctx.font="bold 10px ui-monospace,monospace";ctx.textAlign="left";ctx.fillText(pAt.toFixed(2),padL+plotW+4,cy+3);
+    const vb=view[Math.max(0,Math.min(view.length-1,Math.round((cx-padL)/bw-0.5)))];
+    if(vb){ctx.fillStyle=C.acc;ctx.fillRect(cx-22,padT+plotH+1,44,13);ctx.fillStyle=C.bg;ctx.font="9px ui-monospace,monospace";ctx.textAlign="center";ctx.fillText(vb.t.slice(11,16),cx,padT+plotH+11);}}
+  _cvMap={lo,hi,padT,plotH,padL,plotW,bw,vstart,total};   // for the mouse handlers to invert x→bar, y→price
+  if(meta){const last=bars[total-1];
+    meta.textContent=inst+" "+(px?px.toFixed(2):last.c)+" · 5m · "+last.t.slice(11)+" ET"+(_cv.off>0?" · ⟲ "+_cv.off+" back":"");}
+}
+function redrawChart(){ if(_lastChartBars)renderChart(_lastChartBars,_lastChartSt); }
+addEventListener("resize",redrawChart);
+// scroll/zoom the terminal: wheel = zoom, drag = pan through history, double-click = snap to live
+(function(){ const cv=$("mchart"); if(!cv)return; let drag=null,draw=null,raf=0;
+  const rq=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(redrawChart);};
+  const rel=e=>{const r=cv.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};};
+  const priceAtY=y=>_cvMap?_cvMap.hi-(y-_cvMap.padT)/_cvMap.plotH*(_cvMap.hi-_cvMap.lo):0;
+  const barAtX=x=>_cvMap?Math.max(0,Math.min(_cvMap.total-1,_cvMap.vstart+Math.round((x-_cvMap.padL)/_cvMap.bw-0.5))):0;
+  const msOf=i=>{const b=_lastChartBars&&_lastChartBars[i];return b?Date.parse(b.t.replace(" ","T")):0;};
+  cv.addEventListener("wheel",e=>{ if(!_lastChartBars)return; e.preventDefault();
+    const total=_lastChartBars.length, step=Math.max(3,Math.round(_cv.shown*0.15));
+    _cv.shown=Math.max(20,Math.min(total, _cv.shown+(e.deltaY>0?step:-step))); redrawChart();
+  },{passive:false});
+  cv.addEventListener("mousedown",e=>{ if(!_lastChartBars)return; const p=rel(e);
+    if(_tool==="trend"){ const v=msOf(barAtX(p.x)),pr=priceAtY(p.y); draw={ms1:v,p1:pr,ms2:v,p2:pr}; _draft=draw; }
+    else { drag={x:e.clientX, off:_cv.off}; cv.style.cursor="grabbing"; } });
+  addEventListener("mousemove",e=>{ if(!_lastChartBars)return;
+    if(draw){ const p=rel(e); draw.ms2=msOf(barAtX(p.x)); draw.p2=priceAtY(p.y); _draft=draw; rq(); return; }
+    if(drag){ const total=_lastChartBars.length, perBar=(cv.clientWidth-72)/Math.max(1,_cv.shown);
+      _cv.off=Math.max(0,Math.min(total-_cv.shown, drag.off+Math.round((e.clientX-drag.x)/perBar))); redrawChart(); return; }
+    if(_crossOn){ const p=rel(e); if(p.x>=0&&p.x<=cv.clientWidth&&p.y>=0&&p.y<=cv.clientHeight){_cross=p;rq();} else if(_cross){_cross=null;rq();} } });
+  addEventListener("mouseup",()=>{ if(draw){ if(Math.abs(draw.ms2-draw.ms1)>0||Math.abs(draw.p2-draw.p1)>0.05)_trend.push(draw); draw=null;_draft=null;redrawChart(); }
+    if(drag){drag=null; cv.style.cursor=(_tool==="trend")?"crosshair":"grab";} });
+  cv.addEventListener("mouseleave",()=>{ if(_cross){_cross=null;rq();} });
+  cv.addEventListener("dblclick",()=>{ _cv.off=0; redrawChart(); });   // snap to the live edge
+  const setTool=t=>{_tool=t;document.querySelectorAll(".charttools .ctool[data-tool]").forEach(b=>b.classList.toggle("on",b.dataset.tool===t));cv.style.cursor=t==="trend"?"crosshair":"grab";};
+  document.querySelectorAll(".charttools .ctool[data-tool]").forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+  const xc=$("ctCross"); if(xc)xc.onclick=()=>{_crossOn=!_crossOn;xc.classList.toggle("on",_crossOn);if(!_crossOn){_cross=null;redrawChart();}};
+  const clr=$("ctClear"); if(clr)clr.onclick=()=>{_trend=[];_draft=null;redrawChart();};
+  const cen=$("ctCenter"); if(cen)cen.onclick=()=>{_cv.off=0;redrawChart();};
+  // grid brightness dimmer — persists across sessions
+  const gd=$("gridDim"),gdv=$("gridDimVal");
+  if(gd){ gd.value=Math.round(_gridDim*100); if(gdv)gdv.textContent=gd.value+"%";
+    gd.oninput=()=>{ _gridDim=Math.max(0.12,+gd.value/100); if(gdv)gdv.textContent=gd.value+"%"; localStorage.setItem("rf_gridDim",gd.value); redrawChart(); }; }
+  cv.style.cursor="grab";
+  if(window.ResizeObserver){ let raf2=0; new ResizeObserver(()=>{ cancelAnimationFrame(raf2); raf2=requestAnimationFrame(redrawChart); }).observe(cv.parentElement); }
+})();
+function renderCopilot(cp){
+  if(!cp)return;
+  const rc=$("regime"); rc.textContent=cp.regime||"—"; rc.className="regimechip "+((cp.regime||"").split(" ")[0]);
+  const ch=(cp.coaching||[]).map(c=>'<div class="coach '+c.tone+'"><span class="cl">'+(c.tone==="act"?"● do this":c.tone==="caution"?"▲ caution":"○ watch")+'</span>'+c.text+'</div>').join("");
+  // coaching updates on the rail as TEXT only. Aries does NOT auto-read it — the position/price notes
+  // refresh every poll as the tape moves, which caused overlapping loop readouts. She speaks when you ASK
+  // (Live voice / Ask Aries) or on a discrete qualify/confirm alert — never on a continuous loop.
+  if(ch!==_lastCoach){ $("coaching").innerHTML=ch; _lastCoach=ch; }
+  // WINDOW SCORE CARDS — live TODAY (a past day being reviewed is rendered by the calendar nav, not here)
+  if(_scDate)return;
+  $("scavg").textContent=cp.todayCount?("today "+cp.todayCount+" scored · avg "+cp.avgGrade):"";
+  const today=localToday();
+  const wins=(cp.windows||[]).filter(w=>w.day===today).sort((a,b)=>a.t<b.t?-1:1);
+  let sh=scCardHTML(wins);
+  // OUT-OF-WINDOW card — off-system trades, the teachable moment
+  _oow=cp.outOfWindow||null;
+  if(_oow) sh+='<div class="scard oow" title="Trades taken outside a scored window">'
+    +'<div class="rc-tile-lbl" style="color:var(--color-warning)">⚠ Out of Window</div>'
+    +'<div class="rc-tile-net '+(_oow.net>=0?"pos":"neg")+'">'+rcMoney(_oow.net)+'</div>'
+    +'<div class="rc-tile-sub">'+_oow.n+' off-system · '+_oow.winPct+'% · tap to review</div></div>';
+  // the DAY REPORT CARD — the last card of the day, tap for the full surgical debrief
+  const rcToday=_reportCard&&_reportCard.perDay&&_reportCard.perDay[today];
+  if(rcToday) sh+='<div class="scard report" data-rc="'+today+'" title="Open the day report card">'
+    +'<div class="rc-tile-lbl">◆ Day Report Card</div>'
+    +'<div class="rc-tile-net '+(rcToday.net>=0?"pos":"neg")+'">'+rcMoney(rcToday.net)+'</div>'
+    +'<div class="rc-tile-sub">'+rcToday.n+' trades · '+rcToday.winPct+'% win · tap for the debrief</div></div>';
+  if(sh!==_lastWin){$("screl").innerHTML=sh;_lastWin=sh;}
+}
+// shared card markup — used for both the live day and archived days
+function scCardHTML(wins){
+  _scWins=wins||[];
+  if(!_scWins.length)return '<div class="empty">No windows scored this day.</div>';
+  return _scWins.map((w,i)=>{
+    const dc=w.dir==="BEAR"?"bear":w.dir==="BULL"?"bull":"";
+    const struct=(w.debrief||"").replace(/^[A-Z]+ [\d.]+pt @\d+:00 · /,"");
+    const pnl=w.tradePnl!==undefined?' <span class="scpnl '+(w.tradePnl>=0?"pos":"neg")+'">'+(w.tradePnl>=0?"+$":"-$")+Math.abs(w.tradePnl)+'</span>':'';
+    return '<div class="scard '+dc+'" data-i="'+i+'" title="Click to expand">'
+      +'<div class="schead"><span class="scgrade '+w.grade+'">'+w.grade+'</span>'
+      +'<div class="scmeta"><div class="sctime">'+w.t.slice(11)+' ET · '+w.hour+':00 window</div>'
+      +'<div class="scdir '+dc+'">'+w.dir+' '+(+w.size).toFixed(1)+'pt'+pnl+'</div></div></div>'
+      +'<div class="scstruct">'+struct+'</div>'
+      +(w.verdict?'<div class="scverdict '+w.verdict.tone+'">'+w.verdict.mark+' '+w.verdict.text+'</div>':'')
+      +'<div class="scprep"><span class="scpreplbl">▸ next window</span> '+linkRefs(w.note||scPrep(w))+'</div></div>';
+  }).join("");
+}
+// ── CALENDAR — page back through archived days ──
+let _scDate=null,_scDates=[];
+async function loadScDates(){ try{ _scDates=((await(await fetch("/api/history")).json()).dates)||[]; }catch(e){} }
+async function showScDate(d){
+  _scDate=d; const lbl=$("scDateLbl");
+  if(!d){ lbl.textContent="Today · live"; _lastWin=""; return; }   // back to live (tick repaints)
+  lbl.textContent=d;
+  try{ const j=await(await fetch("/api/history?d="+d)).json();
+    let sh=scCardHTML((j.windows||[]).sort((a,b)=>a.t<b.t?-1:1));
+    // the Day Report Card belongs to whatever day you're viewing — archived days get it too
+    const rcd=_reportCard&&_reportCard.perDay&&_reportCard.perDay[d];
+    if(rcd) sh+='<div class="scard report" data-rc="'+d+'" title="Open the day report card">'
+      +'<div class="rc-tile-lbl">◆ Day Report Card</div>'
+      +'<div class="rc-tile-net '+(rcd.net>=0?"pos":"neg")+'">'+rcMoney(rcd.net)+'</div>'
+      +'<div class="rc-tile-sub">'+rcd.n+' trades · '+rcd.winPct+'% win · tap for the debrief</div></div>';
+    $("screl").innerHTML=sh; $("scavg").textContent=(j.windows||[]).length+" windows · archived"; }
+  catch(e){ $("screl").innerHTML='<div class="empty">No archive for that day.</div>'; }
+}
+$("scPrev").onclick=async()=>{ await loadScDates(); const today=localToday();
+  const past=_scDates.filter(x=>x<(_scDate||today)); if(past.length)showScDate(past[past.length-1]); };
+$("scNext").onclick=async()=>{ if(!_scDate)return; await loadScDates(); const fut=_scDates.filter(x=>x>_scDate);
+  if(fut.length)showScDate(fut[0]); else showScDate(null); };
+const ACCT_HIDE=/^(sim|backtest|playback|replay|demo|test)/i;   // practice/sim accounts, not real capital
+function spark2(trail,pos){
+  if(!trail||trail.length<2)return "";
+  const w=90,h=22,lo=Math.min(0,...trail),hi=Math.max(0,...trail),sp=(hi-lo)||1;
+  const pts=trail.map((v,i)=>((i/(trail.length-1))*w).toFixed(1)+","+((h-2)-(v-lo)/sp*(h-4)).toFixed(1)).join(" ");
+  const zy=((h-2)-(0-lo)/sp*(h-4)).toFixed(1);
+  return '<svg width="'+w+'" height="'+h+'" style="display:block;">'
+    +'<line x1="0" y1="'+zy+'" x2="'+w+'" y2="'+zy+'" stroke="var(--color-border-default)" stroke-width="0.5"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="var(--color-'+(pos?"positive":"negative")+')" stroke-width="1.25"/></svg>';
+}
+function renderAccounts(kpi){
+  const el=$("acctgrid"),sum=$("acctsummary");
+  const per=(kpi&&kpi.per)||[], g=(kpi&&kpi.global)||{};
+  if(!per.length){if(_lastAcct!=="empty"){el.innerHTML='<div class="empty">Add the <b>RollingFibAccounts</b> indicator to one chart with a live Apex connection — your accounts stream here.</div>';sum.innerHTML="";_lastAcct="empty";}return;}
+  const cls=v=>v>0.005?"pos":v<-0.005?"neg":"flat2";
+  const money=(v,d)=>(v>=0?"+":"")+(v||0).toFixed(d===undefined?2:d);
+  // GLOBAL KPIs in the section bar — the trader's whole book at a glance
+  sum.innerHTML='<div class="acctsum">'
+    +'<span>live <span class="v">'+(g.live||0)+'/'+(g.n||0)+'</span></span>'
+    +'<span>combined day <span class="v '+cls(g.totDay)+'">'+money(g.totDay)+'</span></span>'
+    +'<span>green/red <span class="v">'+(g.green||0)+'/'+(g.red||0)+'</span></span>'
+    +'<span>book DD <span class="v '+(g.totDD>0?"neg":"")+'">'+(g.totDD||0).toFixed(0)+'</span></span>'
+    +'<span>balance <span class="v">'+(g.totBal||0).toLocaleString(undefined,{maximumFractionDigits:0})+'</span></span>'
+    +(g.best?'<span>best <span class="v pos">'+g.best.slice(-4)+' '+money(g.bestPnL,0)+'</span></span>':'')
+    +'</div>';
+  // ACTIVE accounts only — connected or funded/traded. Drop the empty disconnected shells.
+  const active=per.filter(a=>/connected/i.test(a.conn||"")||(a.balance||0)>0||Math.abs(a.dayPnL||0)>0.005||((a.positions||[]).length));
+  const h=(active.length?active:per).map(a=>{
+    const day=a.dayPnL||0, c=cls(day);
+    const pos=(a.netQty>0?"+"+a.netQty:(a.netQty||0)===0?"flat":a.netQty);
+    // LIVE POSITION — side, size, entry + an unrealized-P&L progress bar (green profit / red loss)
+    const openP=(a.positions||[]).filter(p=>+p.qty>0);
+    let posHtml="";
+    if(openP.length){
+      const u=a.unrealized||0, cap=Math.max(75,Math.abs(u)*1.4), pct=Math.min(100,Math.abs(u)/cap*100);
+      posHtml='<div class="posblock">'
+        +openP.map(p=>'<div class="posrow"><span class="ptag '+(p.side==="LONG"?"long":"short")+'">'+p.side+'</span>'
+          +'<span class="pqty">'+p.qty+' '+p.instr+' @ '+(+p.avg).toFixed(2)+'</span>'
+          +'<span class="posunrl '+(u>=0?"pos":"neg")+'">'+money(u,0)+'</span></div>').join("")
+        +'<div class="posbar"><div class="posfill '+(u>=0?"pos":"neg")+'" style="width:'+pct.toFixed(0)+'%"></div></div></div>';
+    }
+    return '<div class="acct '+c+(a.stale?" stale":"")+(openP.length?" haspos":"")+'">'
+      +'<div class="an"><span class="dot'+(/Connected/i.test(a.conn||"")&&!a.stale?"":" off")+'"></span>'
+      +'<span class="anm">'+a.name+'</span>'+(a.stale?'<span style="margin-left:auto;font-size:9px;color:var(--color-text-disabled);">stale</span>':'')+'</div>'
+      +'<div style="display:flex;align-items:flex-end;gap:var(--space-3);"><div class="pnl '+c+'">'+money(day)+'</div>'
+      +'<div style="margin-left:auto;">'+spark2(a.trail,day>=0)+'</div></div>'
+      +'<div class="sub2"><span>bal <b>'+(a.balance||0).toLocaleString(undefined,{maximumFractionDigits:0})+'</b></span>'
+      +'<span>DD <b>'+(a.drawdown||0).toFixed(0)+'</b></span>'
+      +'<span>pos <b>'+pos+'</b></span></div>'
+      +posHtml+'</div>';
+  }).join("");
+  if(h!==_lastAcct){el.innerHTML=h;_lastAcct=h;}
+}
+function renderBT(bts){
+  const el=$("btgrid"), ct=$("btcount");
+  if(ct) ct.textContent=bts.length?bts.length+" file"+(bts.length>1?"s":""):"none yet";
+  if(!bts.length){if(_lastBt!=="empty"){el.innerHTML='<div class="empty">No backtest files yet.</div>';_lastBt="empty";}return;}
+  const _bth=bts.map((b,i)=>{
+    const pf=b.pf===null?"∞":b.pf.toFixed(2);
+    const pfCls=b.pf===null?"":b.pf>=1.6?"pos":b.pf>=1.1?"warn":"neg";
+    const exits=Object.entries(b.exitNames||{}).sort((x,y)=>y[1]-x[1]).slice(0,6)
+      .map(([k,v])=>'<span class="mchip">'+k+' <b>'+v+'</b></span>').join("");
+    const mgmt=Object.keys(b.exitNames||{}).some(k=>/WndEnd|Roll|Inval|EOD/i.test(k));
+    return '<div class="hcard" style="width:380px;animation-delay:'+(i*50)+'ms">'
+      +'<div class="chead"><span class="inst" style="font-size:var(--font-size-body);font-family:var(--font-mono);">'+b.file+'</span>'
+      +'<span class="badge '+(b.net>=0?"pos":"neg")+'">'+(b.net>=0?"+":"")+b.net.toFixed(0)+'</span></div>'
+      +'<div class="meta" style="margin:0 0 var(--space-2)">'+(b.from||"?")+" → "+(b.to||"?")+'</div>'
+      +spark(b.curve)
+      +'<div class="chips" style="margin-top:var(--space-3)">'
+      +'<span class="mchip">trades <b>'+b.n+'</b></span><span class="mchip">WR <b>'+(b.wr*100).toFixed(1)+'%</b></span>'
+      +'<span class="mchip '+pfCls+'">PF <b>'+pf+'</b></span><span class="mchip">exp <b>'+b.exp.toFixed(2)+'</b></span>'
+      +'<span class="mchip">maxDD <b>'+b.maxDD.toFixed(0)+'</b></span><span class="mchip">maxCL <b>'+b.maxCL+'</b></span>'
+      +(mgmt?'<span class="mchip pos">window mgmt ✓</span>':'<span class="mchip neg">no window exits — wrong build?</span>')
+      +'</div><div class="chips" style="margin-top:var(--space-2)">'+exits+'</div></div>';
+  }).join("");
+  if(_bth!==_lastBt){el.innerHTML=_bth;_lastBt=_bth;}   // repaint only on change
+}
+/* clock */
+setInterval(()=>{$("clockv").textContent=new Date().toLocaleTimeString("en-US",{timeZone:"America/New_York",hour12:false,hour:"2-digit",minute:"2-digit"})+" ET";},1000);
+/* density toggle */
+const DENS=["comfortable","compact","spacious"];
+$("densBtn").onclick=()=>{
+  const cur=document.documentElement.dataset.density,next=DENS[(DENS.indexOf(cur)+1)%3];
+  document.documentElement.dataset.density=next;$("densBtn").textContent=next.toUpperCase();localStorage.helixDensity=next;
+};
+if(localStorage.helixDensity){document.documentElement.dataset.density=localStorage.helixDensity;$("densBtn").textContent=localStorage.helixDensity.toUpperCase();}
+/* horizontally collapsible Aries rail — more room for the terminal + score cards */
+function setRail(collapsed){ document.body.classList.toggle("railcollapsed",collapsed); localStorage.railCollapsed=collapsed?"1":""; setTimeout(()=>{try{redrawChart();}catch(e){}},240); }
+$("railCollapse").onclick=()=>setRail(true);
+$("railExpand").onclick=()=>setRail(false);
+if(localStorage.railCollapsed==="1")setRail(true);
+/* alerts: enable audio + notifications on click (browsers require a user gesture), then chime a test */
+$("alertBtn").onclick=()=>{
+  if(window.Notification && Notification.permission!=="granted") Notification.requestPermission();
+  chime();
+  $("alertBtn").textContent="🔔 ALERTS ON";
+};
+$("voiceBtn").onclick=()=>{
+  ariesVoice=!ariesVoice; pickAriesVoice();
+  $("voiceBtn").textContent=ariesVoice?"🔊":"🔇"; $("voiceBtn").classList.toggle("on",ariesVoice);
+  if(ariesVoice) aries("Aries online, Rich. I've got the tape and your numbers. I'll call the windows and keep you honest.",true);
+};
+/* ── ASK ARIES — Gemini 2.5 brain (server packs the spec + live tape into every call) ── */
+const chatHist=[];
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+// turn Gemini's wall-of-text quota error into one clear line with the reset countdown
+function ariesErr(e){
+  if(/quota|exceeded|rate.?limit/i.test(e)){
+    const m=/retry in ([\d.]+)s/i.exec(e), s=m?Math.ceil(+m[1]):null;
+    return "⚠ Gemini rate limit for a moment."+(s?" Retrying in ~"+s+"s.":"")+" I'll be right back.";
+  }
+  return "⚠ "+e;
+}
+function chatAdd(cls,text,who){
+  const d=document.createElement("div");d.className="msg "+cls;
+  d.innerHTML=(who?'<span class="who2">'+who+'</span>':"")+esc(text);
+  $("chat").appendChild(d);$("chat").scrollTop=1e9;return d;
+}
+// one path for text AND voice: sends q to the Gemini brain, prints it, and always speaks the reply
+// when the question came in by voice (spoken=true) or the voice toggle is on.
+async function sendToAries(q,spoken,image,label){
+  q=(q||"").trim(); if(!q&&!image)return;
+  $("askBtn").disabled=true;
+  chatAdd(label?"trig":"me",label||((image?"👁️ ":"")+(q||"Read this chart.")));
+  const th=chatAdd("ai thinking",image?"reading the chart…":"…","ARIES");
+  try{
+    rlHit("brain");   // your questions get priority on the brain budget
+    const r=await(await fetch("/api/aries",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({q,history:chatHist.slice(-12),image})})).json();
+    th.remove();
+    if(r.error) chatAdd("ai err",ariesErr(r.error),"ARIES");
+    else{
+      chatAdd("ai",r.text,"ARIES");
+      chatHist.push({role:"user",text:q||"[shared a chart to read]"},{role:"model",text:r.text});
+      if(chatHist.length>24)chatHist.splice(0,chatHist.length-24);
+      aries(r.text,spoken);   // force-speak spoken questions even if the 🔊 toggle is off
+    }
+  }catch(e){th.remove();chatAdd("ai err","⚠ server unreachable","ARIES");}
+  $("askBtn").disabled=false;
+}
+$("askForm").onsubmit=ev=>{ ev.preventDefault(); const q=$("askInput").value; $("askInput").value=""; sendToAries(q,false).then(()=>$("askInput").focus()); };
+
+/* ── ARIES · LISTENING MODE (Web Speech recognition + wake word) ── */
+let listening=false, _recog=null, _recogWantsOn=false, _followUntil=0;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+// speech recognition frequently mis-hears "Aries" — accept the common mistranscriptions as the wake word
+const WAKEWORD=/\b(aries|aires|aris|arie|ares|areas|eris|iris|aria|ariez)\b/;
+// wake / greeting phrases that shouldn't burn a Gemini call — Aries just answers she's here
+const WAKE=/\b(are you there|you there|wake up|you up|you awake|hey|hi|hello|good morning)\b/;
+function ariesGreeting(){
+  const g=["I'm right here, Rich. Watching the tape with you.",
+           "Here, Architect. Radar's live and your book's in front of me.",
+           "I'm with you, Rich. What are we looking at?",
+           "Right here, Architect. Talk to me."];
+  return g[Math.floor(Date.now()/9973)%g.length];   // no Math.random in some sandboxes; time-seeded
+}
+function startRecog(){
+  if(!SR||!_recogWantsOn||_speaking)return;
+  try{_recog&&_recog.start();}catch(e){}   // "already started" throws — harmless
+}
+function buildRecog(){
+  const r=new SR();
+  r.lang="en-US"; r.continuous=true; r.interimResults=false; r.maxAlternatives=1;
+  r.onresult=ev=>{
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      if(!ev.results[i].isFinal)continue;
+      let t=ev.results[i][0].transcript.trim(); if(!t)continue;
+      const low=t.toLowerCase();
+      const m=low.match(WAKEWORD);
+      let cmd=null;
+      if(m){ const wi=low.indexOf(m[0]); cmd=t.slice(wi+m[0].length).replace(/^[\s,.:!?-]+/,"").trim(); }  // strip wake word
+      else if(Date.now()<_followUntil){ cmd=t; }   // still in a conversation — no wake word needed
+      else continue;                                // not addressed to Aries — ignore ambient talk
+      _followUntil=Date.now()+9000;                 // keep the mic conversational for a 9s reply window
+      if(!cmd || WAKE.test(cmd.toLowerCase())){ // pure "Aries, are you there?" → local greeting
+        chatAdd("me",t); const g=ariesGreeting(); chatAdd("ai",g,"ARIES"); aries(g,true); return;
+      }
+      // "Aries, read my chart / look at the chart / what do you see" → capture the screen and read it
+      if(/\b(read|look at|analy[sz]e|check|see|what.?s on)\b.*\bchart\b|\bwhat do you see\b/.test(cmd.toLowerCase())){
+        (async()=>{ try{ const s=await ensureShare(); const img=await grabFrame(s); await sendToAries(cmd,true,img); }
+          catch(e){ const g="I need to see your screen first, Rich — tap the eye icon and pick your chart window."; chatAdd("ai",g,"ARIES"); aries(g,true); } })();
+        return;
+      }
+      sendToAries(cmd,true);                  // real question → Gemini brain, spoken reply
+      return;
+    }
+  };
+  r.onend=()=>{ if(_recogWantsOn) setTimeout(startRecog,250); };   // Chrome auto-stops; keep it alive
+  r.onerror=ev=>{
+    if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){
+      _recogWantsOn=false; listening=false; $("micBtn").classList.remove("listening");
+      chatAdd("ai err","⚠ Mic blocked — allow microphone access for this page, then tap 🎙️ again.","ARIES");
+    }
+  };
+  return r;
+}
+// press-to-talk (Web Speech) — the FALLBACK when the realtime Live API can't run (e.g. no billing)
+function startTurnBased(){
+  if(!SR){ chatAdd("ai err","⚠ No speech recognition in this browser. Use Chrome or Edge.","ARIES"); return; }
+  listening=true; _recogWantsOn=true; $("micBtn").classList.add("listening");
+  if(!_recog)_recog=buildRecog(); startRecog();
+  if(!ariesVoice){ariesVoice=true;$("voiceBtn").textContent="🔊";$("voiceBtn").classList.add("on");}
+  const g="Press-to-talk mode, Rich. Say \"Aries…\" and I'll answer.";
+  chatAdd("ai",g,"ARIES"); aries(g,true);
+}
+/* ── ARIES · LIVE VOICE — Gemini Live API: one realtime audio stream, sub-second replies, barge-in ── */
+let _live=null;
+function b64ToInt16(b64){const bin=atob(b64),n=bin.length,dv=new DataView(new ArrayBuffer(n));for(let i=0;i<n;i++)dv.setUint8(i,bin.charCodeAt(i));const o=new Int16Array(n>>1);for(let i=0;i<o.length;i++)o[i]=dv.getInt16(i*2,true);return o;}
+function int16ToB64(i16){const u8=new Uint8Array(i16.buffer);let s="";const CH=0x8000;for(let i=0;i<u8.length;i+=CH)s+=String.fromCharCode.apply(null,u8.subarray(i,i+CH));return btoa(s);}
+async function startLive(){
+  let cfg; try{ cfg=await(await fetch("/api/livekey")).json(); }catch(e){ chatAdd("ai err","⚠ Server unreachable for live voice.","ARIES"); return false; }
+  if(cfg.error){ chatAdd("ai err","⚠ "+cfg.error,"ARIES"); return false; }
+  let stream; try{ stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}}); }
+  catch(e){ chatAdd("ai err","⚠ Mic blocked — allow microphone access, then tap 🎙️ again.","ARIES"); return false; }
+  const AC=window.AudioContext||window.webkitAudioContext;
+  // use the DEFAULT hardware rate and resample to 16k ourselves — asking for a 16k context isn't
+  // honored on every browser, and mislabeled-rate audio is why she couldn't hear you.
+  const inCtx=new AC(), outCtx=new AC();
+  try{await inCtx.resume();await outCtx.resume();}catch(e){}
+  const ws=new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="+encodeURIComponent(cfg.key));
+  _live={ws,stream,inCtx,outCtx,proc:null,src:null,nextT:0,sources:[],inText:"",outText:"",open:false};
+  ws.onopen=()=>ws.send(JSON.stringify({setup:{
+    model:"models/"+cfg.model,
+    generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:_ariesVoiceName||cfg.voice||"Kore"}}}},
+    systemInstruction:{parts:[{text:cfg.system}]},
+    inputAudioTranscription:{}, outputAudioTranscription:{}
+  }}));
+  ws.onmessage=async ev=>{
+    let txt=typeof ev.data==="string"?ev.data:await ev.data.text(); let m; try{m=JSON.parse(txt);}catch(e){return;}
+    if(m.setupComplete){
+      _live.open=true; liveStartMic();
+      // greet by VOICE (a text nudge triggers her first spoken turn) — no instructions announced
+      try{ _live.ws.send(JSON.stringify({clientContent:{turns:[{role:"user",parts:[{text:"(You just came online for a live voice session with Rich. Open with a short, warm hello — 'Hey Rich, what's up' style — then just listen. Do not list your capabilities.)"}]}],turnComplete:true}})); }catch(e){}
+      return;
+    }
+    const sc=m.serverContent; if(!sc) return;
+    if(sc.interrupted) liveStopPlayback();
+    for(const p of ((sc.modelTurn&&sc.modelTurn.parts)||[])) if(p.inlineData&&/audio/.test(p.inlineData.mimeType||"")) livePlay(p.inlineData.data);
+    if(sc.inputTranscription&&sc.inputTranscription.text) _live.inText+=sc.inputTranscription.text;
+    if(sc.outputTranscription&&sc.outputTranscription.text) _live.outText+=sc.outputTranscription.text;
+    if(sc.turnComplete){
+      if(_live.inText.trim()){chatAdd("me",_live.inText.trim());_live.inText="";}
+      if(_live.outText.trim()){chatAdd("ai",_live.outText.trim(),"ARIES");_live.outText="";}
+    }
+  };
+  ws.onerror=()=>{};
+  ws.onclose=ev=>{
+    const wasOpen=_live&&_live.open; teardownLive(); $("micBtn").classList.remove("listening");
+    if(!wasOpen){
+      chatAdd("ai err","⚠ Live voice couldn't start — the Gemini Live API needs billing enabled on your key. Dropping to press-to-talk so you still have voice.","ARIES");
+      startTurnBased();
+    } else if(ev.code!==1000){
+      chatAdd("ai err","⚠ Live voice dropped"+(ev.reason?": "+ev.reason:"")+". Tap 🎙️ to reconnect.","ARIES");
+    }
+  };
+  return true;
+}
+function downsampleTo16k(f32,inRate){
+  if(inRate===16000) return f32;
+  const ratio=inRate/16000, outLen=Math.floor(f32.length/ratio), out=new Float32Array(outLen);
+  for(let i=0;i<outLen;i++){
+    const a=Math.floor(i*ratio), b=Math.floor((i+1)*ratio); let sum=0,c=0;
+    for(let j=a;j<b&&j<f32.length;j++){sum+=f32[j];c++;}
+    out[i]=c?sum/c:(f32[a]||0);   // average = cheap anti-alias down to 16k
+  }
+  return out;
+}
+function liveStartMic(){
+  if(!_live)return;
+  try{_live.inCtx.resume();}catch(e){}
+  const rate=_live.inCtx.sampleRate;   // actual hardware rate (usually 44100/48000)
+  const src=_live.inCtx.createMediaStreamSource(_live.stream), proc=_live.inCtx.createScriptProcessor(4096,1,1);
+  const mute=_live.inCtx.createGain(); mute.gain.value=0;   // keep the processor running but DON'T echo your mic to the speakers
+  src.connect(proc); proc.connect(mute); mute.connect(_live.inCtx.destination);
+  _live.mute=mute;
+  proc.onaudioprocess=e=>{
+    if(!_live||_live.ws.readyState!==1)return;
+    const ds=downsampleTo16k(e.inputBuffer.getChannelData(0),rate), i16=new Int16Array(ds.length);
+    for(let i=0;i<ds.length;i++){let x=Math.max(-1,Math.min(1,ds[i]));i16[i]=x<0?x*0x8000:x*0x7FFF;}
+    _live.ws.send(JSON.stringify({realtimeInput:{mediaChunks:[{mimeType:"audio/pcm;rate=16000",data:int16ToB64(i16)}]}}));
+  };
+  _live.proc=proc; _live.src=src;
+}
+function livePlay(b64){
+  if(!_live)return;
+  const i16=b64ToInt16(b64), f=new Float32Array(i16.length);
+  for(let i=0;i<i16.length;i++) f[i]=i16[i]/32768;
+  const ab=_live.outCtx.createBuffer(1,f.length,24000); ab.getChannelData(0).set(f);
+  const s=_live.outCtx.createBufferSource(); s.buffer=ab; s.connect(_live.outCtx.destination);
+  const t=Math.max(_live.outCtx.currentTime,_live.nextT); s.start(t); _live.nextT=t+ab.duration;
+  _live.sources.push(s); s.onended=()=>{ if(_live)_live.sources=_live.sources.filter(x=>x!==s); };
+}
+function liveStopPlayback(){ if(!_live)return; _live.sources.forEach(s=>{try{s.stop();}catch(e){}}); _live.sources=[]; _live.nextT=0; }
+function teardownLive(){
+  const L=_live; _live=null; if(!L)return;
+  try{L.proc&&L.proc.disconnect();}catch(e){} try{L.src&&L.src.disconnect();}catch(e){}
+  try{L.stream&&L.stream.getTracks().forEach(t=>t.stop());}catch(e){}
+  try{L.inCtx&&L.inCtx.close();}catch(e){} try{L.outCtx&&L.outCtx.close();}catch(e){}
+  try{if(L.ws&&L.ws.readyState<=1)L.ws.close(1000);}catch(e){}
+}
+async function toggleLive(){
+  if(_live){ teardownLive(); $("micBtn").classList.remove("listening"); chatAdd("ai","Live voice off. Tap 🎙️ to go live again.","ARIES"); return; }
+  if(listening){ listening=false;_recogWantsOn=false; try{_recog&&_recog.stop();}catch(e){} $("micBtn").classList.remove("listening"); chatAdd("ai","Mic off.","ARIES"); return; }
+  $("micBtn").classList.add("listening");
+  if(!(await startLive())) $("micBtn").classList.remove("listening");
+}
+$("micBtn").onclick=toggleLive;
+/* ── ARIES · CHART VISION — share the screen once, then grab frames on demand for her to read ── */
+let _shareStream=null;
+async function ensureShare(){
+  if(_shareStream && _shareStream.getVideoTracks()[0] && _shareStream.getVideoTracks()[0].readyState==="live") return _shareStream;
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getDisplayMedia) throw new Error("no-capture");
+  _shareStream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:2},audio:false});
+  _shareStream.getVideoTracks()[0].addEventListener("ended",()=>{
+    _shareStream=null; $("chartBtn").classList.remove("on");
+    if(_triggerVision){ _triggerVision=false; $("watchBtn").classList.remove("live"); chatAdd("ai","Screen share ended — trigger vision off. I'll still coach from the radar and answer when you ask.","ARIES"); }
+  });
+  $("chartBtn").classList.add("on");
+  return _shareStream;
+}
+// near-uniform frame → the capture came back blank/black (common with WebGL iframe embeds like a
+// TradingView widget). Sampled so it's cheap even on a big canvas.
+function canvasBlank(ctx,w,h){
+  const d=ctx.getImageData(0,0,w,h).data, step=Math.max(4,Math.floor(Math.min(w,h)/48))*4*Math.max(1,Math.floor(w/48));
+  let mn=255,mx=0;
+  for(let i=0;i<d.length;i+=step){ const l=d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114; if(l<mn)mn=l; if(l>mx)mx=l; }
+  return (mx-mn)<9;   // no meaningful contrast anywhere → blank
+}
+async function grabFrame(stream){
+  const v=document.createElement("video"); v.srcObject=stream; v.muted=true;
+  await v.play();
+  await new Promise(r=>{ if(v.videoWidth) return r(); v.onloadedmetadata=()=>r(); });
+  await new Promise(r=>setTimeout(r,120));   // let a real frame land
+  const maxW=1400, scale=Math.min(1, maxW/(v.videoWidth||maxW));
+  const c=document.createElement("canvas"); c.width=Math.round((v.videoWidth||maxW)*scale); c.height=Math.round((v.videoHeight||900)*scale);
+  const ctx=c.getContext("2d"); ctx.drawImage(v,0,0,c.width,c.height);
+  try{v.pause();}catch(e){}
+  if(canvasBlank(ctx,c.width,c.height)) throw new Error("blank-frame");
+  return c.toDataURL("image/jpeg",0.72);
+}
+$("chartBtn").onclick=async()=>{
+  try{
+    const stream=await ensureShare();
+    const img=await grabFrame(stream);
+    const q=$("askInput").value.trim(); $("askInput").value="";
+    await sendToAries(q,ariesVoice||listening,img);   // typed text steers the read if present
+  }catch(e){
+    const msg=e&&e.name==="NotAllowedError"?"⚠ Screen share cancelled — tap 👁️ and pick your chart window to let me see it."
+      :e&&e.message==="no-capture"?"⚠ This browser can't share the screen. Use Chrome or Edge."
+      :e&&e.message==="blank-frame"?"⚠ The chart came back blank — capturing a single GPU-rendered window (NinjaTrader is DirectX) returns black. Re-share and pick \"Entire Screen\" instead of the window, then tap 👁️ again."
+      :"⚠ Couldn't grab the chart. Tap 👁️ to re-share.";
+    chatAdd("ai err",msg,"ARIES");
+    if(e&&e.message==="blank-frame"&&_shareStream){ try{_shareStream.getTracks().forEach(t=>t.stop());}catch(x){} _shareStream=null; $("chartBtn").classList.remove("on"); }
+  }
+};
+/* ── ARIES · TRIGGER VISION — the indicator already knows the moments that matter (qualify / arm /
+   confirm). When one fires and your screen is shared, she snapshots the chart and preps you on what
+   she's actually seeing — event-driven, not polling. A handful of reads a day, each one that counts. */
+async function triggerVision(evt){
+  if(!_triggerVision) return;
+  const kind=evt.type, msg=evt.msg||"";
+  const q = kind==="QUALIFIED"
+      ? "A candle just QUALIFIED — "+msg+". Here's my chart at this exact moment. Tell me what you actually see and prep me for the trade window: the structure, the fib and midline levels that matter, and the play. Reconcile it against the radar."
+    : kind==="PREARM"
+      ? "The hour is ARMING — "+msg+". Here's my chart. What's developing, and what do I watch into the :00 close?"
+    : kind==="CONFIRM"
+      ? "A 15m CONFIRM just printed — "+msg+". Here's the chart. Is this a clean setup? Give me the entry, the invalidation, and the target in the Rolling Fib framework."
+      : kind+" — "+msg+". Read my chart and prep me.";
+  const label="📸 "+kind+" · "+msg;
+  if(rlCount("brain")>=16){   // your live conversation keeps brain priority; a trigger yields if you're mid-exchange
+    chatAdd("ai","📸 "+kind+" fired ("+msg+") — holding the snapshot, brain budget's tied up. Ask me and I'll read it.","ARIES"); return;
+  }
+  if(_shareStream){
+    try{
+      const img=await grabFrame(_shareStream);
+      await sendToAries(q,true,img,label);   // vision + spoken prep, tied to the trigger
+      return;
+    }catch(e){
+      if(e&&e.message==="blank-frame")
+        chatAdd("ai err","📸 A "+kind+" fired ("+msg+") but my snapshot came back blank — share your whole screen so I can see it. Reading from the radar instead:","ARIES");
+    }
+  }
+  // no screen shared (or blank) → prep from the radar snapshot, voice only
+  sendToAries(q+" (I can't see your screen right now — share it and I'll confirm visually.)",true,null,label);
+}
+$("watchBtn").onclick=async()=>{
+  if(_triggerVision){   // disarm
+    _triggerVision=false; $("watchBtn").classList.remove("live");
+    chatAdd("ai","Trigger vision off. I'll still coach from the radar and answer when you ask.","ARIES"); return;
+  }
+  try{
+    await ensureShare();   // she needs to see your screen to snapshot on a trigger
+    _triggerVision=true; $("watchBtn").classList.add("live");
+    if(!ariesVoice){ariesVoice=true;$("voiceBtn").textContent="🔊";$("voiceBtn").classList.add("on");}
+    const g="Trigger vision armed, Rich. The moment a candle qualifies, an hour arms, or a fifteen-minute confirms, I'll snapshot your chart and prep you on what I'm actually seeing.";
+    chatAdd("ai",g,"ARIES"); aries(g,true);
+  }catch(e){
+    const msg=e&&e.name==="NotAllowedError"?"⚠ Screen share cancelled — tap 🛰️ and pick \"Entire Screen\" so I can snapshot on triggers."
+      :e&&e.message==="no-capture"?"⚠ This browser can't share the screen. Use Chrome or Edge.":"⚠ Couldn't arm trigger vision. Tap 🛰️ to retry.";
+    chatAdd("ai err",msg,"ARIES");
+  }
+};
+/* clear the tab-title flag when you come back to the tab */
+addEventListener("focus",()=>{document.title="Rolling Fib — Live";});
+/* main poll */
+async function tick(){
+  try{
+    const d=await(await fetch("/api/all")).json();
+    $("conn").classList.remove("off");
+    _reportCard=d.reportCard||null;
+    const today=localToday();
+    const tdEvents=d.events.filter(e=>e.t.startsWith(today));
+    // QUALIFY ALERT — fire the chime + notification on a NEW qualifying window (events are
+    // newest-first). Seed on first poll so we don't alert on the backlog at page load.
+    const newestQual=d.events.find(e=>e.type==="QUALIFIED");
+    if(newestQual){
+      const key=newestQual.t+"|"+newestQual.i;
+      if(_alertsReady && key!==_lastQualKey){ fireQualifyAlert(newestQual); triggerVision(newestQual); }
+      _lastQualKey=key;
+    }
+    const newestArm=d.events.find(e=>e.type==="PREARM");
+    if(newestArm){
+      const ak=newestArm.t+"|"+newestArm.i;
+      if(_alertsReady && ak!==_lastArmKey){ firePrearmAlert(newestArm); triggerVision(newestArm); }
+      _lastArmKey=ak;
+    }
+    // FADE — the live BUY/SELL trigger (the validated edge). Seeded like the others so it never alerts the backlog.
+    const newestFade=d.events.find(e=>e.type==="FADE");
+    if(newestFade){
+      const fk=newestFade.t+"|"+newestFade.i+"|"+newestFade.msg;
+      if(_alertsReady && _lastFadeKey!==null && fk!==_lastFadeKey){ fireFadeAlert(newestFade); }
+      _lastFadeKey=fk;
+    }
+    // CONTINUATION — the :25/:45 with-trend pullback entry (the +5.4pt workhorse). Seeded like the fade → no backlog alert.
+    const newestCont=d.events.find(e=>e.type==="CONTINUATION");
+    if(newestCont){
+      const nk=newestCont.t+"|"+newestCont.i+"|"+newestCont.msg;
+      if(_alertsReady && _lastContKey!==null && nk!==_lastContKey){ fireContinuationAlert(newestCont); }
+      _lastContKey=nk;
+    }
+    // CONFIRM — the 15m confirm at a pivot, i.e. the entry-prep moment
+    const newestConf=d.events.find(e=>e.type==="CONFIRM");
+    if(newestConf){
+      const ck=newestConf.t+"|"+newestConf.i;
+      if(_alertsReady && ck!==_lastConfKey) triggerVision(newestConf);
+      _lastConfKey=ck;
+    }
+    _alertsReady=true;
+    // HUD chips — effective status treats an arming hour as ARMING (not idle)
+    const eff=d.states.map(s=>isArming(s)?"ARMING":s.status);
+    const rank=["IN TRADE","CONFIRMED","ARMING","ARMED","ACTIVE","HOLDING","IDLE","DEAD"];
+    const best=eff.sort((a,b)=>rank.indexOf(a)-rank.indexOf(b))[0]||"—";
+    setChip("chipRadar",best,["IN TRADE","CONFIRMED","ARMING","ARMED"].includes(best)?"alert":best==="—"?"inactive":null);
+    const fresh=d.states.filter(s=>(Date.now()-new Date(s.updated.replace(" ","T")))<7*60*1000).length;
+    // when the NT feed has gone stale, say so plainly with the last-seen time — a dark dashboard
+    // should never be a mystery. Both radar + accounts freezing together = NinjaTrader disconnected.
+    const acctStale=d.copilot&&d.copilot.accounts&&d.copilot.accounts.global&&d.copilot.accounts.global.feedStale;
+    if(!fresh && d.states.length){
+      const last=d.states.map(s=>s.updated).sort().pop()||"";
+      setChip("chipFeed","NT FEED STALE · "+last.slice(11),"alert");
+    } else setChip("chipFeed",fresh+"/"+d.states.length+" live",fresh?null:(acctStale?"alert":"inactive"));
+    // DAY P&L comes from the ACCOUNTS (real money) — the radar state carries no P&L (always 0)
+    const gg=(d.copilot&&d.copilot.accounts&&d.copilot.accounts.global)||{};
+    const pnl=gg.totDay||0;
+    setChip("chipDay",pnl,pnl<0?"alert":null,v=>(v>=0?"+":"")+v.toFixed(0));
+    setChip("chipBlocks",(d.copilot&&d.copilot.blocksToday)||tdEvents.filter(e=>e.type==="BLOCK").length,null,v=>v.toFixed(0));
+    // cards — attach any open position (matching instrument) so the ladder can mark your entry
+    const cards=$("cards"),have=new Set(d.states.map(s=>s.instrument)),byInst={};
+    const allPos=((d.copilot&&d.copilot.accounts&&d.copilot.accounts.per)||[]).flatMap(a=>(a.positions||[]).map(p=>({...p,unrealized:a.unrealized})));
+    d.states.forEach(s=>{ const mp=allPos.find(p=>p.instr===s.instrument&&+p.qty>0); if(mp){ s._entry=+mp.avg; s._side=mp.side; } else { delete s._entry; } });
+    for(const e of d.events){(byInst[e.i]=byInst[e.i]||[]).push(e);}
+    let html=d.states.map((s,i)=>card(s,(Date.now()-new Date(s.updated.replace(" ","T")))>7*60*1000,i)).join("");
+    Object.keys(byInst).filter(k=>!have.has(k)).forEach((k,i)=>html+=tvCard(k,byInst[k],d.states.length+i));
+    if(html&&html!==_lastCards){cards.innerHTML=html;_lastCards=html;}   // only repaint on change (no blink)
+    // MES terminal — draw the native congruent chart from NinjaTrader bars + the grid overlay
+    { const mst=d.states.find(s=>s.instrument==="MES")||d.states[0];
+      const mb=d.bars&&(d.bars.MES||d.bars[(mst&&mst.instrument)]||d.bars[Object.keys(d.bars)[0]]);
+      renderChart(mb&&mb.bars, mst, (d.copilot&&d.copilot.windows)||[], d.marks||d.events||[]); }   // marks = ALL structure/fade signals (uncapped) so every BUY/SELL shows wherever you pan
+    // feed
+    if(d.events.length)
+    {const fh=d.events.map(e=>'<div class="al '+e.type+'"><span class="at">'+e.t.slice(5)+" · "+e.i+" · "+e.type+'</span><div class="am">'+e.msg+'</div></div>').join("");
+      if(fh!==_lastFeed){$("feed").innerHTML=fh;_lastFeed=fh;}}
+    renderCopilot(d.copilot);
+    _brainOnline=!!d.ariesBrain;   // gates neural TTS — browser voice is the fallback when offline
+    const bd=$("brainDot");bd.classList.toggle("on",!!d.ariesBrain);
+    bd.title=d.ariesBrain?"Gemini 2.5 brain online ("+"live spec + tape in context)":"Brain offline — set GEMINI_API_KEY or save the key to dashboard\\gemini.key, then restart server.js";
+    renderAccounts(d.copilot&&d.copilot.accounts);
+    renderMyTrading(d.copilot&&d.copilot.myTrading);
+    renderBT(d.backtests||[]);
+  }catch(err){
+    $("conn").classList.add("off");
+    const h=document.querySelector(".hud");h.classList.remove("shake");void h.offsetWidth;h.classList.add("shake");
+    setChip("chipFeed","server offline","alert");
+  }
+}
+tick();setInterval(tick,500);
+// ── SSE live push: the chart tracks the tape the instant the indicator writes, with no poll delay.
+//    Light channel (state+bars) → re-renders just the chart (reusing cached grids/marks). The 500ms poll
+//    keeps scorecards/accounts/feed current; SSE keeps the price/candles live. Auto-reconnects on drop.
+function applyLive(d){
+  if(!d||!d.states||!d.states.length)return;
+  const mst=d.states.find(s=>s.instrument==="MES")||d.states[0];
+  const mb=d.bars&&d.bars.MES;
+  if(mb&&mb.bars&&mb.bars.length&&mst) renderChart(mb.bars,mst);   // renderChart reuses cached wins+marks
+}
+(function connectStream(){
+  if(typeof EventSource==="undefined")return;
+  try{
+    const es=new EventSource("/api/stream");
+    es.onmessage=ev=>{ try{ applyLive(JSON.parse(ev.data)); }catch(e){} };
+    // EventSource reconnects automatically on error; nothing to do
+  }catch(e){}
+})();
+</script>
+</body></html>

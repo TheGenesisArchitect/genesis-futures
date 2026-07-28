@@ -1,0 +1,16 @@
+# Secrets — the Gemini key lives in these paths (see server.js key resolution)
+Copilot/
+dashboard/gemini.key
+*.key
+
+# Runtime data written by NinjaScript / the server (regenerated live)
+live/
+dashboard/server.log
+*.log
+
+# Manual backup copies (superseded by git itself)
+backups/
+
+# OS noise
+Thumbs.db
+desktop.ini

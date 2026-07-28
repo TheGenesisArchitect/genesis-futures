@@ -1,0 +1,683 @@
+//@version=6
+// ════════════════════════════════════════════════════════════════
+//  ROLLING FIB STRATEGY  [MES/ES]  v4.1-TV — CONFIRM BUBBLE TRADEABLE/DEEP COLOR-CODING
+//  · Entries are RESTING LIMITS AT STRUCTURE: Setup A rests at the first level
+//    beyond the confirmed pivot (the pullback fills us); Setup C rests at the
+//    broken 100 for the retest. Market-on-momentum-close triggers are gone —
+//    falsified by three backtests (67/77 losers were 1-2 bar stop-outs).
+//  · VWAP direction gate: bull grids only above session VWAP, bear only below;
+//    VWAP-aligned hours qualify at kAligned x median (normal directional hour
+//    is tradeable WITH the auction), counter hours need full kRange abnormality.
+//  · Wide stops (full level below pivot) · breakeven at 1R · cutoff :50 so the
+//    :45 trigger window lives · session-median range gate · daily halts.
+//  Load on a 5-MINUTE chart. One pair at a time. This script replaces the radar:
+//  it paints grids, arms, alerts (webhook JSON) and backtests in one place.
+//  Alerts: ONE alert on this strategy → "Any alert() function call".
+// ════════════════════════════════════════════════════════════════
+strategy("Rolling Fib Strategy [MES/ES]", shorttitle = "RollFibStrat", overlay = true,
+     pyramiding = 0, initial_capital = 10000,
+     commission_type = strategy.commission.cash_per_contract, commission_value = 0.62,
+     slippage = 1, calc_on_every_tick = false, process_orders_on_close = false,
+     max_lines_count = 500, max_labels_count = 500, max_boxes_count = 100)
+
+// ── ① INPUTS ─────────────────────────────────────────────────────
+string GQ = "① Qualification (1H)"
+string tzIn      = input.string("America/New_York", "Session timezone", group = GQ)
+int    qStartH   = input.int(7,  "First qualifying hour [0-23]", minval = 0, maxval = 23, group = GQ)
+int    qEndH     = input.int(14, "Last qualifying hour [0-23]",  minval = 0, maxval = 23, group = GQ)
+string rangeModel = input.string("Fixed (abs pts)", "Expected-range model", options = ["Fixed (abs pts)", "Session median", "Hour-of-day EMA"], group = GQ)
+float  kRange    = input.float(1.25, "Height gate vs expected — counter/neutral hours [x]", step = 0.05, group = GQ)
+float  kAligned  = input.float(1.0,  "Height gate vs expected — VWAP-aligned hours [x]", step = 0.05, group = GQ)
+bool   vwapFilter = input.bool(true, "VWAP direction gate (trade with the auction)", group = GQ)
+float  minAbsPts = input.float(10.0, "Qualifying height [pts] — Fixed mode / floor (MES 10 · NQ ~40 · YM ~120)", step = 0.5, group = GQ)
+float  kVol      = input.float(1.10, "Volume gate [x] (0 = off)", step = 0.05, group = GQ)
+float  minBody   = input.float(0.30, "Minimum body/range [frac]", step = 0.05, group = GQ)
+float  minCLV    = input.float(0.60, "Minimum close-location [frac]", step = 0.05, group = GQ)
+int    seasLen   = input.int(10, "Seasonal EMA length [days]", minval = 3, group = GQ)
+float  capOut    = input.float(2.0, "Baseline outlier cap [x EMA] (0 = off)", step = 0.25, group = GQ)
+float  decayBoost = input.float(2.0, "Baseline decay boost — falls x faster than it rises", minval = 1.0, step = 0.5, group = GQ)
+
+string GT = "② Trade window"
+int    maxEntries = input.int(3,  "Max entries per window", minval = 1, maxval = 5, group = GT)
+int    cutoffMin  = input.int(50, "Entry cutoff [min] — :45 trigger window lives", minval = 10, maxval = 58, group = GT)
+int    stopBufTks = input.int(2, "Stop buffer [ticks]", minval = 0, group = GT)
+float  minRR      = input.float(1.2, "Min RR to T1 [x]", step = 0.1, group = GT)
+bool   wideStops   = input.bool(true, "Wide stops (full level below pivot)", group = GT)
+bool   beAt1R      = input.bool(true, "Breakeven at 1R", group = GT)
+bool   holdRunner  = input.bool(false, "Hold runner to T2 (off = bank both at T1, reversion)", group = GT)
+int    entryTiming = input.int(1, "Entry timing 0=touch 1=close-confirm 2=open-on-confirm", minval = 0, maxval = 2, group = GT)
+float  maxHeatPts  = input.float(10.0, "Hard cut at heat [pts] (0 = off)", step = 0.5, group = GT)
+int    minHoldBars = input.int(3, "Min hold bars before heat cut (0 = off)", minval = 0, maxval = 12, group = GT)
+bool   allowShorts = input.bool(true, "Enable shorts (bear grids)", group = GT)
+bool   enableAccel = input.bool(false, "Setup C break-retest (CHASER — off: proven wrong-direction)", group = GT)
+bool   enableFade  = input.bool(true, "Setup B extension fade", group = GT)
+float  fadeMinRR   = input.float(1.0, "Fade min RR [x]", step = 0.1, group = GT)
+bool   fadeSkipExt = input.bool(true, "Fade skip if beyond 161.8", group = GT)
+bool   onePerPivot = input.bool(true, "One Setup-A fill per pivot", group = GT)
+bool   useTrigWin  = input.bool(true, "Trigger windows — limits live only :20–:30 & :40–:50", group = GT)
+bool   ckptBE      = input.bool(true, ":45 checkpoint breakeven", group = GT)
+int    exitMode    = input.int(0, "Window exit mode 0=flat 1=hold 2=roll-hold", minval = 0, maxval = 2, group = GT)
+float  maxRiskFrac = input.float(0.25, "Max entry risk [frac of grid]", step = 0.01, group = GT)
+float  maxT1RR     = input.float(2.5,  "Max RR to T1 [x]", step = 0.1, group = GT)
+int    maxPivotIdx = input.int(3, "Setup A: deepest pivot midline [0-5]", minval = 0, maxval = 5, group = GT)
+
+string GR = "③ Risk"
+int    legQty      = input.int(1, "Contracts per leg", minval = 1, group = GR)
+int    maxConsecL  = input.int(3, "Max consecutive losing legs (0 = off)", minval = 0, group = GR)
+float  dayLossLim  = input.float(300, "Daily loss limit $ (0 = off)", step = 50, group = GR)
+int    flatH       = input.int(16, "Hard flatten hour [ET]", minval = 0, maxval = 23, group = GR)
+bool   showGrid    = input.bool(true, "Draw grid on chart", group = "④ Display")
+bool   showADR     = input.bool(true, "Frame prior-day ADR (H / Mid / L, faint)", group = "④ Display")
+bool   keepHistory = input.bool(true, "Keep historic grids (off = only live grid)", group = "④ Display")
+bool   showTrigWin = input.bool(true, "Shade trigger windows (:25 & :45)", group = "④ Display")
+int    histCap     = input.int(20, "Max historic grids kept", minval = 1, maxval = 40, group = "④ Display")
+bool   emitAlerts  = input.bool(true, "Emit JSON alerts (webhook → dashboard)", group = "④ Display")
+
+// ── ② CONSTANTS & STATE ─────────────────────────────────────────
+float tickSz = syminfo.mintick
+var float[]  RATIOS = array.from(0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0, 1.618)
+var string[] RNAME  = array.from("0", "23.6", "38.2", "50", "61.8", "78.6", "100", "161.8")
+
+var float hO = na
+var float hH = na
+var float hL = na
+var float hV = 0.0
+var int   hBars = 0
+var int   hStartBar = 0
+var float m15H = na
+var float m15L = na
+var map<int, float> rngEma = map.new<int, float>()
+var map<int, float> volEma = map.new<int, float>()
+var float[] hrRanges = array.new_float()
+float seasAlpha = 2.0 / (seasLen + 1)
+
+var int     dir = 0
+var float   gBase = na
+var float   gR = na
+var float[] lvP = array.new_float()
+var float[] mdP = array.new_float()
+var int     qCloseT = na
+var int     winEndT = na
+var int     qHod = na
+var string  gState = "IDLE"
+var int     supIdx = -1
+var int     entriesUsed = 0
+var bool    pivotUsed = false
+var bool    accelArmed = false
+var bool    accelUsed = false
+var bool    brokeBeyond = false
+var bool    extTouched = false
+var bool    fadeFired = false
+var float   extExtreme = na
+var bool    ckptDone = false
+var string  blockReason = "warmup"
+var string  lastSignal = "—"
+
+// order management (single pair; entry may be a RESTING LIMIT)
+var string  openId = ""
+var bool    pendingEntry = false
+var bool    isFade = false
+var bool    t1Done = false
+var float   oPx = na
+var float   oSL = na
+var float   oT1 = na
+var float   oT2 = na
+var float   openRisk0 = na
+var int     entrySeq = 0
+var int     subBar = -1
+var int     entryBarP = -1
+// daily guards + session VWAP
+var int     lastClosed = 0
+var int     consecL = 0
+var float   dayBase = 0.0
+var bool    haltDay = false
+var float   vPV = 0.0
+var float   vVol = 0.0
+
+var line[]  gLines = array.new_line()
+var label[] gLabels = array.new_label()
+var box[]   gBoxes = array.new_box()
+var label[] sigLabels = array.new_label()
+
+gtD(float a, float b) => dir == 1 ? a > b : a < b
+geD(float a, float b) => dir == 1 ? a >= b : a <= b
+jAlert(string typ, string msg) =>
+    if emitAlerts
+        alert('{"i":"' + syminfo.ticker + '","type":"' + typ + '","msg":"' + msg + '"}', alert.freq_once_per_bar_close)
+keepSig(label id) =>
+    array.push(sigLabels, id)
+    if array.size(sigLabels) > 60
+        label.delete(array.shift(sigLabels))
+clearGrid() =>
+    while array.size(gLines) > 0
+        line.delete(array.shift(gLines))
+    while array.size(gLabels) > 0
+        label.delete(array.shift(gLabels))
+    while array.size(gBoxes) > 0
+        box.delete(array.shift(gBoxes))
+// keepHistory: don't wipe — trim oldest objects to stay under Pine's object caps
+// (each grid ≈ 15 lines · 8 labels · 2 boxes; boxes are the tightest at 100 max)
+trimGrids(int cap) =>
+    while array.size(gLines) > cap * 15
+        line.delete(array.shift(gLines))
+    while array.size(gLabels) > cap * 8
+        label.delete(array.shift(gLabels))
+    while array.size(gBoxes) > cap * 2
+        box.delete(array.shift(gBoxes))
+expRangeFor(int hod) =>
+    float med = na
+    int n = array.size(hrRanges)
+    if n >= 5
+        float[] srt = array.copy(hrRanges)
+        array.sort(srt, order.ascending)
+        med := array.get(srt, n / 2)
+    float sR = rngEma.get(hod)
+    rangeModel == "Session median" ? med : (na(sR) ? med : sR)
+cancelPending(string why) =>
+    if pendingEntry
+        strategy.cancel(openId)
+        openId := ""
+        pendingEntry := false
+        lastSignal := "limit cancelled (" + why + ")"
+
+bool tfOk = timeframe.in_seconds() == 300
+
+// ── prior-day ADR frame (context behind the grid) ───────────────
+// prev RTH-day high/low/mid, extended faintly across today's session so the
+// operator sees where the Rolling Fib grids sit within the day's expected range
+float pdH = request.security(syminfo.tickerid, "D", high[1], lookahead = barmerge.lookahead_off)
+float pdL = request.security(syminfo.tickerid, "D", low[1],  lookahead = barmerge.lookahead_off)
+float pdMid = (pdH + pdL) / 2.0
+var line adrH = na
+var line adrM = na
+var line adrL = na
+var label adrHl = na
+var label adrLl = na
+if showADR and tfOk and ta.change(time("D")) != 0 and not na(pdH)
+    line.delete(adrH), line.delete(adrM), line.delete(adrL)
+    label.delete(adrHl), label.delete(adrLl)
+    int x2 = bar_index + 84
+    adrH := line.new(bar_index, pdH, x2, pdH, color = color.new(color.gray, 55), style = line.style_dotted, width = 1)
+    adrL := line.new(bar_index, pdL, x2, pdL, color = color.new(color.gray, 55), style = line.style_dotted, width = 1)
+    adrM := line.new(bar_index, pdMid, x2, pdMid, color = color.new(color.gray, 72), style = line.style_dashed, width = 1)
+    adrHl := label.new(x2, pdH, "PDH", style = label.style_none, textcolor = color.new(color.gray, 25), size = size.tiny)
+    adrLl := label.new(x2, pdL, "PDL", style = label.style_none, textcolor = color.new(color.gray, 25), size = size.tiny)
+
+// ── ③ HTF AGGREGATION ───────────────────────────────────────────
+bool newHourBar = ta.change(time("60")) != 0
+if newHourBar
+    hO := open
+    hH := high
+    hL := low
+    hV := nz(volume)
+    hBars := 1
+    hStartBar := bar_index
+else
+    hH := math.max(nz(hH, high), high)
+    hL := math.min(nz(hL, low), low)
+    hV += nz(volume)
+    hBars += 1
+bool new15Bar = ta.change(time("15")) != 0
+if new15Bar
+    m15H := high
+    m15L := low
+else
+    m15H := math.max(nz(m15H, high), high)
+    m15L := math.min(nz(m15L, low), low)
+bool hourClose = barstate.isconfirmed and minute(time_close, tzIn) == 0
+bool m15Close  = barstate.isconfirmed and minute(time_close, tzIn) % 15 == 0
+
+// ── ④ DAILY GUARDS + SESSION VWAP ───────────────────────────────
+bool newDay = ta.change(time("D")) != 0
+if newDay
+    consecL := 0
+    haltDay := false
+    dayBase := strategy.netprofit
+    vPV := 0.0
+    vVol := 0.0
+vPV += hlc3 * nz(volume)
+vVol += nz(volume)
+float vwapS = vVol > 0 ? vPV / vVol : close
+while lastClosed < strategy.closedtrades
+    float p = strategy.closedtrades.profit(lastClosed)
+    consecL := p < 0 ? consecL + 1 : 0
+    lastClosed += 1
+float dayPnL = strategy.netprofit - dayBase
+if not haltDay and ((maxConsecL > 0 and consecL >= maxConsecL) or (dayLossLim > 0 and dayPnL <= -dayLossLim))
+    haltDay := true
+    cancelPending("daily halt")
+    jAlert("HALT", "daily guard: consecL=" + str.tostring(consecL) + " dayPnL=" + str.tostring(dayPnL, "#.##"))
+
+// flat bookkeeping (never while a limit is still resting)
+if strategy.position_size == 0 and openId != "" and not pendingEntry and bar_index > subBar
+    openId := ""
+    isFade := false
+    t1Done := false
+    openRisk0 := na
+
+// ── ⑤ EOD HARD FLATTEN ──────────────────────────────────────────
+if tfOk and barstate.isconfirmed and hour(time_close, tzIn) >= flatH and (strategy.position_size != 0 or pendingEntry)
+    strategy.cancel_all()
+    pendingEntry := false
+    openId := ""
+    if strategy.position_size != 0
+        strategy.close_all(comment = "EOD")
+    jAlert("WINDOW", "EOD flatten")
+
+// ── ⑥ QUALIFICATION ─────────────────────────────────────────────
+bool qualifiedNow = false
+if hourClose and tfOk and not na(hO) and hBars >= 12
+    int   hod   = hour(time, tzIn)
+    float R     = hH - hL
+    float bodyF = R > 0 ? math.abs(close - hO) / R : 0.0
+    float clvB  = R > 0 ? (close - hL) / R : 0.0
+    float clvS  = R > 0 ? (hH - close) / R : 0.0
+    float expR  = expRangeFor(hod)
+    float sV    = volEma.get(hod)
+    float volRatio = na(sV) or sV == 0 ? na : hV / sV
+    // wrap-aware session: qStartH > qEndH spans midnight (e.g. 18→15 = evening Globex
+    // through next-day RTH), so evening expansion hours can qualify session-to-session
+    bool inSession = qStartH <= qEndH ? (hod >= qStartH and hod <= qEndH) : (hod >= qStartH or hod <= qEndH)
+    bool fixedMode = rangeModel == "Fixed (abs pts)"
+    bool warm   = fixedMode or not na(expR)
+    // VWAP-aligned hours qualify at kAligned (a normal directional hour WITH the
+    // auction is tradeable); counter/neutral hours need full kRange abnormality
+    bool vAligned = close > hO ? close >= vwapS : close <= vwapS
+    float kEff  = not vwapFilter or vAligned ? kAligned : kRange
+    // Fixed mode: a flat absolute gate (e.g. MES 10 pts) — no adaptive baseline, so no
+    // volatility boom-bust droughts. Adaptive modes still available for A/B.
+    float gateR = fixedMode ? minAbsPts : math.max(kEff * nz(expR), minAbsPts)
+    bool hgtOk  = warm and R >= gateR
+    bool volOk  = kVol <= 0 or na(volRatio) or volRatio >= kVol
+    bool bodyOk = bodyF >= minBody
+    bool isBull = close > hO and clvB >= minCLV and (not vwapFilter or close >= vwapS)
+    bool isBear = close < hO and clvS >= minCLV and allowShorts and (not vwapFilter or close <= vwapS)
+    if inSession
+        blockReason := not warm ? "warmup"
+             : not hgtOk ? "height " + str.tostring(R, "#.#") + " < " + str.tostring(gateR, "#.#")
+             : not volOk ? "volume"
+             : not bodyOk ? "body " + str.tostring(bodyF * 100, "#") + "%"
+             : not (isBull or isBear) ? "close-location / VWAP" : "—"
+        if blockReason != "—"
+            jAlert("BLOCK", str.tostring(hod) + ":00 hour blocked — " + blockReason)
+    if inSession and hgtOk and volOk and bodyOk and (isBull or isBear)
+        int newDir = isBull ? 1 : -1
+        cancelPending("roll")
+        if strategy.position_size != 0
+            bool oppose = (strategy.position_size > 0 and newDir == -1) or (strategy.position_size < 0 and newDir == 1)
+            if oppose or exitMode == 0
+                strategy.cancel_all()
+                strategy.close_all(comment = "Roll")
+        dir := newDir
+        gBase := isBull ? hL : hH
+        gR := R
+        qCloseT := time_close
+        winEndT := time_close + 3600000
+        qHod := hod
+        array.clear(lvP)
+        array.clear(mdP)
+        for i = 0 to 7
+            array.push(lvP, gBase + dir * gR * array.get(RATIOS, i))
+        for i = 0 to 6
+            array.push(mdP, (array.get(lvP, i) + array.get(lvP, i + 1)) / 2.0)
+        gState := "ACTIVE"
+        supIdx := -1
+        entriesUsed := 0
+        pivotUsed := false
+        accelArmed := false
+        accelUsed := false
+        brokeBeyond := false
+        extTouched := false
+        extExtreme := na
+        fadeFired := false
+        ckptDone := false
+        qualifiedNow := true
+        blockReason := "—"
+        lastSignal := "QUALIFIED " + (dir == 1 ? "BULL" : "BEAR")
+        jAlert("QUALIFIED", (dir == 1 ? "BULL " : "BEAR ") + str.tostring(R, "#.##") + "pts @" + str.tostring(hod)
+             + ":00 grid " + str.tostring(array.get(lvP, 0), format.mintick) + " -> " + str.tostring(array.get(lvP, 6), format.mintick))
+        if showGrid
+            if keepHistory
+                trimGrids(histCap)
+            else
+                clearGrid()
+            int x1 = hStartBar
+            int x2 = bar_index + 12
+            color acc = dir == 1 ? color.teal : color.red
+            array.push(gBoxes, box.new(x1, hH, bar_index, hL, border_color = color.new(color.purple, 20), bgcolor = color.new(color.purple, 88), border_width = 2))
+            array.push(gBoxes, box.new(bar_index, hH, x2, hL, border_color = color.new(acc, 75), bgcolor = color.new(acc, 94)))
+            // trigger windows (:20-:30 = +4..+6 bars, :40-:50 = +8..+10 bars) shaded faint gold
+            if showTrigWin
+                float gTop = math.max(array.get(lvP, 0), array.get(lvP, 7))
+                float gBot = math.min(array.get(lvP, 0), array.get(lvP, 7))
+                array.push(gBoxes, box.new(bar_index + 4, gTop, bar_index + 6, gBot, border_color = color.new(color.gray, 100), bgcolor = color.new(color.orange, 88)))
+                array.push(gBoxes, box.new(bar_index + 8, gTop, bar_index + 10, gBot, border_color = color.new(color.gray, 100), bgcolor = color.new(color.orange, 88)))
+            for i = 0 to 7
+                float p = array.get(lvP, i)
+                color lc = i == 7 ? color.new(color.blue, 20) : i == 0 or i == 6 ? color.new(color.gray, 10) : color.new(acc, 25)
+                array.push(gLines, line.new(x1, p, x2, p, color = lc, width = i == 0 or i == 6 ? 2 : 1))
+                array.push(gLabels, label.new(x2, p, array.get(RNAME, i) + "  " + str.tostring(p, format.mintick),
+                     style = label.style_label_left, color = color.new(color.black, 40), textcolor = color.white, size = size.small))
+            for i = 0 to 6
+                array.push(gLines, line.new(x1, array.get(mdP, i), x2, array.get(mdP, i), color = color.new(color.white, 55), style = line.style_dashed))
+    // baseline update AFTER evaluation (winsorized up, boosted down)
+    float RU = R
+    float VU = hV
+    float pr = rngEma.get(hod)
+    if capOut > 0 and not na(pr)
+        RU := math.min(RU, pr * capOut)
+    float aR = not na(pr) and RU < pr ? math.min(seasAlpha * decayBoost, 1.0) : seasAlpha
+    rngEma.put(hod, na(pr) ? RU : pr + aR * (RU - pr))
+    float pv = volEma.get(hod)
+    if capOut > 0 and not na(pv)
+        VU := math.min(VU, pv * capOut)
+    float aV = not na(pv) and VU < pv ? math.min(seasAlpha * decayBoost, 1.0) : seasAlpha
+    volEma.put(hod, na(pv) ? VU : pv + aV * (VU - pv))
+    if inSession
+        array.push(hrRanges, RU)
+        if array.size(hrRanges) > 14
+            array.shift(hrRanges)
+
+// ── ⑦ WINDOW EXPIRY ─────────────────────────────────────────────
+if tfOk and not na(winEndT) and not qualifiedNow and time_close >= winEndT and gState != "IDLE" and gState != "EXPIRED"
+    gState := "EXPIRED"
+    cancelPending("window end")
+    if (exitMode == 0 or exitMode == 2) and strategy.position_size != 0
+        strategy.cancel_all()
+        strategy.close_all(comment = "WndEnd")
+    jAlert("WINDOW", "closed" + (strategy.position_size != 0 and exitMode == 1 ? " — holding on brackets" : ""))
+
+bool  inWin      = tfOk and gState != "IDLE" and gState != "EXPIRED" and time_close > nz(qCloseT) and time_close <= nz(winEndT)
+float elapsedMin = inWin ? (time_close - qCloseT) / 60000.0 : na
+// the operator's cadence: 15m close arms, price triggers at the :25 / :45 marks.
+// The :25 and :45 windows are INDEPENDENT opportunities — entering the :45 window
+// while flat RE-ARMS the setup even on the same pivot (was: one-per-pivot killed :45
+// after a :25 fill/stop — the bug that missed every :45 in the screenshots).
+var int prevTrigWin = 0
+int trigWin = not inWin ? 0 : (elapsedMin >= 20 and elapsedMin <= 30 ? 1 : elapsedMin >= 40 and elapsedMin <= 50 ? 2 : 0)
+bool inFillWin = not useTrigWin or trigWin != 0
+if inWin and barstate.isconfirmed
+    if trigWin != 0 and trigWin != prevTrigWin and strategy.position_size == 0 and not pendingEntry
+        pivotUsed := false
+        accelUsed := false
+    prevTrigWin := trigWin
+if inWin and barstate.isconfirmed and elapsedMin > cutoffMin
+    cancelPending("cutoff")
+if inWin and barstate.isconfirmed and pendingEntry and not inFillWin
+    cancelPending("outside trigger window")
+
+// ── ⑧ 15m CONFIRM / INVALIDATION / ACCEPTANCE ───────────────────
+if inWin and m15Close and (gState == "ACTIVE" or gState == "CONFIRMED")
+    if gtD(array.get(lvP, 0), close)
+        gState := "DEAD"
+        cancelPending("invalidated")
+        if strategy.position_size != 0
+            strategy.cancel_all()
+            strategy.close_all(comment = "Inval")
+        lastSignal := "INVALIDATED"
+        jAlert("INVALIDATED", "15m close beyond fib 0 — stand down")
+    else
+        int cand = -1
+        for i = 0 to 5
+            float mp = array.get(mdP, i)
+            bool dipped = dir == 1 ? m15L <= mp : m15H >= mp
+            if dipped and gtD(close, mp)
+                cand := i
+        if cand >= 0 and (gState == "ACTIVE" or cand != supIdx)
+            cancelPending("pivot update")
+            supIdx := cand
+            pivotUsed := false
+            gState := "CONFIRMED"
+            lastSignal := "15m ✓ " + array.get(RNAME, cand) + "/" + array.get(RNAME, cand + 1)
+            // GOLD dot = tradeable confirm; GRAY = too deep to trade (pivot > maxPivotIdx,
+            // orphaned since Setup C retired) — explains "bubble but no trade" at a glance
+            if showGrid
+                bool tradeable = cand <= maxPivotIdx
+                label cd = label.new(bar_index, array.get(mdP, cand), tradeable ? "15m ✓" : "15m ·",
+                     style = dir == 1 ? label.style_label_up : label.style_label_down,
+                     color = color.new(color.black, 60), textcolor = tradeable ? color.orange : color.gray, size = size.tiny)
+                keepSig(cd)
+            jAlert("CONFIRM", (dir == 1 ? "support" : "resistance") + " @ " + array.get(RNAME, cand) + "/"
+                 + array.get(RNAME, cand + 1) + " midline " + str.tostring(array.get(mdP, cand), format.mintick)
+                 + (cand <= maxPivotIdx ? " [tradeable]" : " [too deep — no setup]"))
+        bool heldUpper = dir == 1 ? m15L >= array.get(lvP, 4) : m15H <= array.get(lvP, 4)
+        if enableAccel and heldUpper and gtD(close, array.get(lvP, 5)) and not accelArmed
+            accelArmed := true
+            label am = label.new(bar_index, dir == 1 ? high : low, "C armed",
+                 style = dir == 1 ? label.style_label_down : label.style_label_up,
+                 color = color.new(color.gray, 40), textcolor = color.yellow, size = size.tiny)
+            keepSig(am)
+            jAlert("ACCEL_ARMED", "15m accepted the upper grid — resting break-retest at the 100 on break")
+
+// ── ⑨ FILL DETECTION + BREAKEVEN MANAGEMENT ─────────────────────
+bool freshFill = strategy.position_size != 0 and strategy.position_size[1] == 0
+if freshFill
+    entryBarP := bar_index                        // min-hold clock starts
+if freshFill and openId != ""
+    pendingEntry := false
+    // consume budgets on FILL, not placement — cancelled/re-armed tickets are free
+    entriesUsed += 1
+    if str.startswith(openId, "A")
+        pivotUsed := true
+    if str.startswith(openId, "C")
+        accelUsed := true
+    float fillPx = strategy.position_avg_price
+    lastSignal := (strategy.position_size > 0 ? "FILLED LONG" : "FILLED SHORT") + " @ " + str.tostring(fillPx, format.mintick)
+    label fl2 = label.new(bar_index, strategy.position_size > 0 ? low : high,
+         (strategy.position_size > 0 ? "▲ " : "▼ ") + openId + " filled " + str.tostring(fillPx, format.mintick),
+         style = strategy.position_size > 0 ? label.style_label_up : label.style_label_down,
+         color = color.new(strategy.position_size > 0 ? color.teal : color.red, 10), textcolor = color.white, size = size.small)
+    keepSig(fl2)
+    jAlert("ENTRY", openId + " filled " + (strategy.position_size > 0 ? "LONG" : "SHORT") + " @ "
+         + str.tostring(fillPx, format.mintick) + " SL " + str.tostring(oSL, format.mintick)
+         + " T1 " + str.tostring(oT1, format.mintick) + (na(oT2) ? "" : " T2 " + str.tostring(oT2, format.mintick)))
+
+// leg-1 target filled → runner stop to entry
+if openId != "" and not isFade and not t1Done and math.abs(strategy.position_size) == legQty
+    t1Done := true
+    oSL := strategy.position_avg_price
+    strategy.exit(openId + "x2", from_entry = openId, qty = legQty, stop = oSL, limit = oT2, comment = "T2/BE")
+    jAlert("T1", "leg 1 filled — runner stop to BE " + str.tostring(oSL, format.mintick))
+// breakeven at 1R: a trade that paid a full risk-unit never becomes a loser
+if beAt1R and openId != "" and strategy.position_size != 0 and not na(openRisk0) and openRisk0 > 0
+    float be1 = strategy.position_avg_price
+    bool earned = strategy.position_size > 0 ? close >= be1 + openRisk0 : close <= be1 - openRisk0
+    bool better = strategy.position_size > 0 ? be1 > oSL : be1 < oSL
+    if earned and better
+        oSL := be1
+        if not t1Done or isFade
+            strategy.exit(openId + "x1", from_entry = openId, qty = legQty, stop = oSL, limit = oT1)
+        if not isFade
+            strategy.exit(openId + "x2", from_entry = openId, qty = legQty, stop = oSL, limit = oT2)
+        jAlert("BE1R", "1R earned — stops to breakeven " + str.tostring(oSL, format.mintick))
+// hard heat cut (operator rule: >~$50 / 10pt drawdown on a micro = wrong entry, get out)
+bool heldEnoughP = entryBarP < 0 or (bar_index - entryBarP) >= minHoldBars
+if maxHeatPts > 0 and heldEnoughP and strategy.position_size != 0 and barstate.isconfirmed
+    float heat = (strategy.position_avg_price - close) * (strategy.position_size > 0 ? 1 : -1)
+    if heat >= maxHeatPts
+        strategy.cancel_all()
+        cancelPending("heat cut")
+        strategy.close_all(comment = "HeatCut")
+        jAlert("HEATCUT", "flattened — " + str.tostring(heat, "#.#") + "pt heat >= " + str.tostring(maxHeatPts, "#.#"))
+// :45 checkpoint
+if inWin and barstate.isconfirmed and ckptBE and not ckptDone and elapsedMin >= 45
+    ckptDone := true
+    if openId != "" and strategy.position_size != 0
+        float be = strategy.position_avg_price
+        bool safeB = strategy.position_size > 0 ? close > be + 2 * tickSz : close < be - 2 * tickSz
+        if safeB
+            oSL := be
+            if not t1Done or isFade
+                strategy.exit(openId + "x1", from_entry = openId, qty = legQty, stop = oSL, limit = oT1)
+            if not isFade
+                strategy.exit(openId + "x2", from_entry = openId, qty = legQty, stop = oSL, limit = oT2)
+    jAlert("CHECKPOINT", "45m — stops to breakeven")
+
+bool canPlace = inWin and barstate.isconfirmed and not haltDay and strategy.position_size == 0
+     and not pendingEntry and openId == "" and entriesUsed < maxEntries and elapsedMin <= cutoffMin and gState != "DEAD"
+
+// track the 100-break for Setup C
+if inWin and barstate.isconfirmed and array.size(lvP) == 8
+    if gtD(dir == 1 ? high : low, array.get(lvP, 6))
+        brokeBeyond := true
+
+// ── ⑩ SETUP A — passive limit at the shelf beyond the pivot ─────
+if canPlace and inFillWin and gState == "CONFIRMED" and supIdx <= maxPivotIdx and not (onePerPivot and pivotUsed)
+    float shelf = array.get(lvP, supIdx + 1)
+    float sl = (wideStops ? array.get(lvP, supIdx) : array.get(mdP, supIdx)) - dir * stopBufTks * tickSz
+    // entryOnClose: enter at the CLOSE of a bar that dipped to the shelf and closed back
+    // beyond it (rejection held), not on first touch (68% of losers were touch knife-catches)
+    // entryTiming: 0 touch (limit) · 1 close-confirm (rejection, best for range) · 2 open-on-
+    // confirm (market the moment price holds beyond the shelf — rides trend continuation)
+    bool dippedA = dir == 1 ? low <= shelf : high >= shelf
+    bool trigA = entryTiming == 1 ? (dippedA and gtD(close, shelf)) : gtD(close, shelf)
+    float px = entryTiming == 0 ? shelf : close
+    float risk = (px - sl) * dir
+    if trigA and risk >= 4 * tickSz and risk <= maxRiskFrac * gR
+        float t1 = na
+        for i = 0 to 6
+            float lp = array.get(lvP, i)
+            if na(t1) and gtD(lp, px) and (lp - px) * dir >= risk * minRR and (lp - px) * dir <= risk * maxT1RR
+                t1 := lp
+        if not na(t1)
+            float extMid = (array.get(lvP, 6) + array.get(lvP, 7)) / 2.0
+            float t2 = na
+            if t1 == array.get(lvP, 6)
+                t2 := extMid
+            else
+                for i = 0 to 6
+                    float lp2 = array.get(lvP, i)
+                    if na(t2) and gtD(lp2, t1)
+                        t2 := lp2
+                if na(t2)
+                    t2 := extMid
+            // reversion moves are SHORT — runner-to-far-T2 lost -$439 at 14% WR (82% of
+            // losses). Default: bank BOTH legs at T1 (no runner). holdRunner=on for A/B.
+            if not holdRunner
+                t2 := t1
+            entrySeq += 1
+            string eid = "A" + str.tostring(entrySeq)
+            openId := eid
+            pendingEntry := entryTiming == 0
+            isFade := false
+            t1Done := false
+            subBar := bar_index
+            oPx := px
+            oSL := sl
+            oT1 := t1
+            oT2 := t2
+            openRisk0 := risk
+            if entryTiming == 0
+                if dir == 1
+                    strategy.entry(eid, strategy.long, qty = 2 * legQty, limit = px)
+                else
+                    strategy.entry(eid, strategy.short, qty = 2 * legQty, limit = px)
+            else
+                if dir == 1
+                    strategy.entry(eid, strategy.long, qty = 2 * legQty)
+                else
+                    strategy.entry(eid, strategy.short, qty = 2 * legQty)
+            strategy.exit(eid + "x1", from_entry = eid, qty = legQty, stop = sl, limit = t1)
+            strategy.exit(eid + "x2", from_entry = eid, qty = legQty, stop = sl, limit = t2)
+            lastSignal := "ARMED " + (dir == 1 ? "LONG" : "SHORT") + " limit @ " + str.tostring(px, format.mintick)
+            label ar = label.new(bar_index, px, (dir == 1 ? "▽ A" : "△ A") + " limit " + str.tostring(px, format.mintick)
+                 + "\nSL " + str.tostring(sl, format.mintick) + " T1 " + str.tostring(t1, format.mintick)
+                 + " T2 " + str.tostring(t2, format.mintick),
+                 style = label.style_label_left, color = color.new(color.gray, 30), textcolor = color.white, size = size.small)
+            keepSig(ar)
+            jAlert("ARMED", "A limit " + (dir == 1 ? "LONG" : "SHORT") + " @ " + str.tostring(px, format.mintick)
+                 + " SL " + str.tostring(sl, format.mintick) + " T1 " + str.tostring(t1, format.mintick)
+                 + " T2 " + str.tostring(t2, format.mintick))
+
+// ── ⑪ SETUP C — passive break-retest at the 100 ─────────────────
+if canPlace and inFillWin and enableAccel and accelArmed and not accelUsed and brokeBeyond and array.size(lvP) == 8 and (supIdx < 0 or supIdx > maxPivotIdx)
+    float pxC = array.get(lvP, 6)
+    float slC = (wideStops ? array.get(lvP, 5) : array.get(mdP, 5)) - dir * stopBufTks * tickSz
+    float riskC = (pxC - slC) * dir
+    float extMidC = (array.get(lvP, 6) + array.get(lvP, 7)) / 2.0
+    if riskC >= 4 * tickSz and (extMidC - pxC) * dir >= riskC * minRR
+        entrySeq += 1
+        string cid = "C" + str.tostring(entrySeq)
+        openId := cid
+        pendingEntry := true
+        isFade := false
+        t1Done := false
+        subBar := bar_index
+        oPx := pxC
+        oSL := slC
+        oT1 := extMidC
+        oT2 := array.get(lvP, 7)
+        openRisk0 := riskC
+        if dir == 1
+            strategy.entry(cid, strategy.long, qty = 2 * legQty, limit = pxC)
+        else
+            strategy.entry(cid, strategy.short, qty = 2 * legQty, limit = pxC)
+        strategy.exit(cid + "x1", from_entry = cid, qty = legQty, stop = slC, limit = extMidC)
+        strategy.exit(cid + "x2", from_entry = cid, qty = legQty, stop = slC, limit = array.get(lvP, 7))
+        lastSignal := "ARMED C retest @ " + str.tostring(pxC, format.mintick)
+        label ac = label.new(bar_index, pxC, (dir == 1 ? "▽ C" : "△ C") + " retest " + str.tostring(pxC, format.mintick),
+             style = label.style_label_left, color = color.new(color.gray, 30), textcolor = color.white, size = size.small)
+        keepSig(ac)
+        jAlert("ARMED", "C break-retest limit " + (dir == 1 ? "LONG" : "SHORT") + " @ " + str.tostring(pxC, format.mintick)
+             + " SL " + str.tostring(slC, format.mintick) + " T1 " + str.tostring(extMidC, format.mintick)
+             + " T2 " + str.tostring(array.get(lvP, 7), format.mintick))
+
+// ── ⑫ SETUP B — REVERSION FADE at the exhaustion boundary (100) ─
+// Data verdict: the 100/extension is a reversion zone (Setup C chased it the wrong
+// way, 49% went against, -$3202). This fades the REJECTION of the 100 back toward the
+// mean — the "right time, right direction" trade C should always have been.
+if inWin and barstate.isconfirmed and gState != "DEAD" and array.size(lvP) == 8
+    float extTrig = array.get(lvP, 6)   // the 100 — where momentum exhausts and reverts
+    float edge = dir == 1 ? high : low
+    if geD(edge, extTrig)
+        extTouched := true
+    if extTouched
+        extExtreme := na(extExtreme) ? edge : dir == 1 ? math.max(extExtreme, high) : math.min(extExtreme, low)
+    if enableFade and extTouched and not fadeFired and not haltDay and strategy.position_size == 0
+         and not pendingEntry and openId == "" and elapsedMin <= cutoffMin + 10 and gtD(array.get(lvP, 6), close)
+        bool extOk = not fadeSkipExt or gtD(array.get(lvP, 7), extExtreme)
+        float fsl = extExtreme + dir * stopBufTks * tickSz
+        float fRisk = (fsl - close) * dir
+        float fRew  = (close - array.get(lvP, 5)) * dir
+        if extOk and fRisk >= 2 * tickSz and fRew >= fRisk * fadeMinRR
+            fadeFired := true
+            entrySeq += 1
+            string fid = "F" + str.tostring(entrySeq)
+            openId := fid
+            isFade := true
+            t1Done := false
+            subBar := bar_index
+            oSL := fsl
+            oT1 := array.get(lvP, 5)
+            oT2 := na
+            openRisk0 := fRisk
+            if dir == 1
+                strategy.entry(fid, strategy.short, qty = legQty)
+            else
+                strategy.entry(fid, strategy.long, qty = legQty)
+            strategy.exit(fid + "x1", from_entry = fid, qty = legQty, stop = fsl, limit = array.get(lvP, 5))
+            lastSignal := "FADE " + (dir == 1 ? "SHORT" : "LONG")
+            label fg = label.new(bar_index, dir == 1 ? high : low,
+                 "◆ F " + str.tostring(close, format.mintick) + "\nSL " + str.tostring(fsl, format.mintick)
+                 + " T " + str.tostring(array.get(lvP, 5), format.mintick),
+                 style = dir == 1 ? label.style_label_down : label.style_label_up,
+                 color = color.new(color.orange, 10), textcolor = color.black, size = size.small)
+            keepSig(fg)
+            jAlert("FADE", (dir == 1 ? "SHORT" : "LONG") + " E " + str.tostring(close, format.mintick)
+                 + " SL " + str.tostring(fsl, format.mintick) + " T " + str.tostring(array.get(lvP, 5), format.mintick))
+
+// ── ⑬ DASHBOARD TABLE ───────────────────────────────────────────
+var table dash = table.new(position.top_right, 2, 8, bgcolor = color.new(#0b0e14, 15), border_width = 1, border_color = color.new(color.gray, 70))
+f_cell(int r, string k, string v, color vc) =>
+    table.cell(dash, 0, r, k, text_color = color.new(color.silver, 25), text_size = size.small, text_halign = text.align_left)
+    table.cell(dash, 1, r, v, text_color = vc, text_size = size.small, text_halign = text.align_right)
+if barstate.islast
+    color stCol = gState == "CONFIRMED" ? color.lime : gState == "ACTIVE" ? color.yellow : gState == "DEAD" ? color.red : color.gray
+    f_cell(0, "ROLLFIB v4.1", gState + (haltDay ? " · HALT" : pendingEntry ? " · ARMED" : ""), haltDay ? color.red : stCol)
+    f_cell(1, "Chart TF", tfOk ? "5m ✓" : "✗ use 5m", tfOk ? color.lime : color.red)
+    f_cell(2, "Grid", na(gR) ? "—" : (dir == 1 ? "BULL " : "BEAR ") + str.tostring(gR, "#.##") + " @ " + str.tostring(qHod) + ":00", color.white)
+    f_cell(3, "Pivot", supIdx >= 0 ? array.get(RNAME, supIdx) + "/" + array.get(RNAME, supIdx + 1) : "—", color.aqua)
+    f_cell(4, "VWAP", str.tostring(vwapS, format.mintick) + (close >= vwapS ? " ▲" : " ▼"), close >= vwapS ? color.lime : color.red)
+    f_cell(5, "Entries", str.tostring(entriesUsed) + "/" + str.tostring(maxEntries) + (accelArmed and not accelUsed ? " · C armed" : ""), color.white)
+    f_cell(6, "Block", blockReason, color.new(color.red, 20))
+    f_cell(7, "Last", lastSignal, color.yellow)
